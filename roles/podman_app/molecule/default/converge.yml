@@ -1,0 +1,21 @@
+---
+- name: Converge
+  hosts: podman_app_hosts
+  become: true
+  tasks:
+    - name: Deploy the first test application
+      ansible.builtin.include_role:
+        name: podman_app
+      vars:
+        podman_app_name: molecweb
+        podman_app_image: docker.io/library/nginx:1.27-alpine
+        podman_app_ports:
+          - "127.0.0.1:18080:80"
+
+    - name: Deploy the second test application
+      ansible.builtin.include_role:
+        name: podman_app
+      vars:
+        podman_app_name: molecache
+        podman_app_image: docker.io/library/redis:7-alpine
+        podman_app_memory_limit: 256m

@@ -1,0 +1,38 @@
+---
+# Validates podman_rootless_users. Imported both by assert.yml (the role's own
+# entry point) and by rootless.yml directly, since podman_app calls rootless.yml
+# via `include_role: tasks_from:` without going through main.yml/assert.yml.
+- name: Assert podman_rootless_users entries are well formed
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.name is defined
+      - item.name | length > 0
+      - (item.count | default(podman_subid_count)) | int >= 65536
+    fail_msg: >-
+      Invalid podman_rootless_users entry: {{ item | to_json }}.
+      Each entry must be a mapping with a non-empty 'name', and an optional
+      'count' of at least 65536 subordinate IDs.
+  loop: "{{ podman_rootless_users }}"
+  loop_control:
+    label: "{{ (item.name | default('<unnamed>')) if item is mapping else item }}"
+
+- name: Assert subordinate ID ranges do not overlap between managed users
+  ansible.builtin.assert:
+    that:
+      - _podman_declared_starts | length == _podman_declared_starts | unique | length
+    fail_msg: >-
+      Two or more entries in podman_rootless_users declare the same
+      subuid_start. Subordinate ID ranges must be unique per user.
+  vars:
+    # selectattr('subuid_start') (no test) also drops entries where the key is
+    # present but empty/falsy — an empty string means "auto-allocate", the same
+    # as the key being absent, and must not collide with other auto-allocated
+    # entries here.
+    _podman_declared_starts: >-
+      {{ podman_rootless_users
+         | selectattr('subuid_start', 'defined')
+         | selectattr('subuid_start')
+         | map(attribute='subuid_start')
+         | list }}
+  when: podman_rootless_users | length > 0

@@ -1,0 +1,9 @@
+{{ ansible_managed | comment }}
+
+unqualified-search-registries = [{{ podman_registries_search | map('to_json') | join(', ') }}]
+{% for registry in podman_registries_insecure %}
+
+[[registry]]
+location = "{{ registry }}"
+insecure = true
+{% endfor %}

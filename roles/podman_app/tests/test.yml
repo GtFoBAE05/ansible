@@ -1,0 +1,55 @@
+---
+- name: Test the podman_app role with two instances on one host
+  hosts: podman_app_hosts
+
+  tasks:
+    - name: Deploy the first test application
+      ansible.builtin.include_role:
+        name: podman_app
+      vars:
+        podman_app_name: testweb
+        podman_app_image: docker.io/library/nginx:1.27-alpine
+        podman_app_ports:
+          - "127.0.0.1:18080:80"
+
+    - name: Deploy the second test application
+      ansible.builtin.include_role:
+        name: podman_app
+      vars:
+        podman_app_name: testcache
+        podman_app_image: docker.io/library/redis:7-alpine
+        podman_app_ports:
+          - "127.0.0.1:16379:6379"
+        podman_app_memory_limit: 256m
+
+    - name: Look up the UID of each test service account
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      become: true
+      loop:
+        - testweb
+        - testcache
+      register: _test_uids
+
+    - name: Verify both services are active
+      ansible.builtin.systemd_service:
+        name: "{{ item.item }}.service"
+        scope: user
+        state: started
+      become: true
+      become_user: "{{ item.item }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ item.ansible_facts.getent_passwd[item.item][1] }}"
+      loop: "{{ _test_uids.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      check_mode: true
+
+    - name: Verify each application answers on its published port
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        status_code: [200]
+      loop:
+        - http://127.0.0.1:18080/
+      when: not ansible_check_mode

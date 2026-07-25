@@ -1,0 +1,100 @@
+---
+title: Common Ansible Commands
+---
+
+# Common Ansible Commands
+
+Cheat sheet perintah yang sering dipakai di repo ini. Semua contoh pakai
+inventory `inventories/development/hosts.ini` (group `vps`, host
+`medium-server`).
+
+## Ping — cek konektivitas host
+
+```bash
+# Ping semua host di inventory
+ansible all -i inventories/development/hosts.ini -m ping
+
+# Ping satu group aja
+ansible vps -i inventories/development/hosts.ini -m ping
+
+# Ping satu host spesifik
+ansible medium-server -i inventories/development/hosts.ini -m ping
+```
+
+## Run — jalankan playbook
+
+```bash
+# Jalankan playbook seperti biasa
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml
+
+# Dry-run (check mode) + tampilkan diff, tanpa ubah apa-apa di host
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --check --diff
+
+# Cuma jalankan ke host/group tertentu
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --limit medium-server
+
+# Jalankan tag tertentu aja (misal cuma install, skip config)
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --tags podman-install
+
+# Skip tag tertentu
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --skip-tags podman-verify
+
+# Minta password vault (kalau ada var yang di-encrypt)
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --ask-vault-pass
+
+# Verbose buat debug (tambah -v jadi -vvv kalau perlu lebih detail)
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml -vvv
+```
+
+## Ad-hoc command — one-off tanpa playbook
+
+```bash
+# Jalankan shell command langsung
+ansible vps -i inventories/development/hosts.ini -m command -a "podman --version"
+
+# Gather facts dari host (liat OS, IP, dll)
+ansible medium-server -i inventories/development/hosts.ini -m setup
+
+# Copy file ke host
+ansible vps -i inventories/development/hosts.ini -m copy -a "src=./file.txt dest=/tmp/file.txt"
+```
+
+## Syntax check & lint
+
+```bash
+# Cek syntax playbook tanpa eksekusi
+ansible-playbook -i inventories/development/hosts.ini playbooks/bootstrap.yml --syntax-check
+
+# Lint semua role
+ansible-lint roles/podman roles/podman_app
+```
+
+## Molecule — test role
+
+Jalankan dari dalam folder role-nya (`roles/<nama-role>/`):
+
+```bash
+cd roles/podman
+
+# Full test sequence (create → converge → idempotence → verify → destroy)
+molecule test
+
+# Cuma bikin container test + jalanin role, biar bisa diperiksa manual
+molecule converge
+
+# Masuk ke dalam container test buat debug
+molecule login --host podman-ubuntu2404
+
+# Cuma jalankan verify.yml (setelah converge)
+molecule verify
+
+# Hapus container test
+molecule destroy
+```
+
+## Requirements & collections
+
+```bash
+# Install/update collection yang dibutuhin (lihat requirements.yml)
+ansible-galaxy collection install -r requirements.yml
+```

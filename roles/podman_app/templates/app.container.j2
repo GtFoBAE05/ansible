@@ -1,0 +1,74 @@
+{{ ansible_managed | comment }}
+
+[Unit]
+Description=Podman container for {{ podman_app_name }}
+Documentation=https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName={{ podman_app_name }}
+Image={{ podman_app_image }}
+{% if podman_app_autoupdate | length > 0 %}
+AutoUpdate={{ podman_app_autoupdate }}
+{% endif %}
+{% if podman_app_hostname | length > 0 %}
+HostName={{ podman_app_hostname }}
+{% endif %}
+{% if podman_app_network | length > 0 %}
+Network={{ podman_app_network }}
+{% endif %}
+{% for port in podman_app_ports %}
+PublishPort={{ port }}
+{% endfor %}
+{% for volume in podman_app_volumes %}
+Volume={{ volume }}
+{% endfor %}
+{% for key, value in podman_app_env | dictsort %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+{% for key, value in podman_app_secret_env | dictsort %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+{% if podman_app_run_uid | length > 0 %}
+User={{ podman_app_run_uid }}
+{% endif %}
+{% if podman_app_run_gid | length > 0 %}
+Group={{ podman_app_run_gid }}
+{% endif %}
+{% if podman_app_memory_limit | length > 0 %}
+PodmanArgs=--memory={{ podman_app_memory_limit }}
+{% endif %}
+{% if podman_app_memory_swap_limit | length > 0 %}
+PodmanArgs=--memory-swap={{ podman_app_memory_swap_limit }}
+{% endif %}
+{% if podman_app_cpu_quota | length > 0 %}
+PodmanArgs=--cpus={{ podman_app_cpu_quota }}
+{% endif %}
+{% if podman_app_pids_limit | length > 0 %}
+PodmanArgs=--pids-limit={{ podman_app_pids_limit }}
+{% endif %}
+{% if podman_app_healthcheck_command | length > 0 %}
+HealthCmd={{ podman_app_healthcheck_command }}
+HealthInterval={{ podman_app_healthcheck_interval }}
+HealthRetries={{ podman_app_healthcheck_retries }}
+HealthStartPeriod={{ podman_app_healthcheck_start_period }}
+HealthTimeout={{ podman_app_healthcheck_timeout }}
+{% endif %}
+{% if podman_app_entrypoint | length > 0 %}
+Entrypoint={{ podman_app_entrypoint }}
+{% endif %}
+{% if podman_app_command | length > 0 %}
+Exec={{ podman_app_command }}
+{% endif %}
+{% for option in podman_app_container_options %}
+{{ option }}
+{% endfor %}
+
+[Service]
+Restart={{ podman_app_restart_policy }}
+RestartSec={{ podman_app_restart_sec }}
+TimeoutStartSec={{ podman_app_timeout_start_sec }}
+
+[Install]
+WantedBy={{ podman_app_wanted_by }}

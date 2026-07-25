@@ -1,0 +1,2 @@
+[podman_app_hosts]
+localhost ansible_connection=local

@@ -1,0 +1,30 @@
+---
+galaxy_info:
+  role_name: podman_app
+  namespace: infra
+  author: Infrastructure Team
+  description: >-
+    Deploys a single containerized application as a rootless Podman Quadlet
+    unit running under a dedicated per-app service account.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - podman
+    - quadlet
+    - rootless
+    - containers
+
+# Required so the role can be applied more than once per play, once per
+# application instance, instead of being deduplicated after the first call.
+allow_duplicates: true
+
+dependencies:
+  - role: podman

@@ -1,0 +1,3 @@
+---
+podman_app_nologin_shell: /usr/sbin/nologin
+podman_app_selinux_volume_flag: ""

@@ -1,0 +1,37 @@
+---
+- name: Ensure the containers configuration directory exists
+  ansible.builtin.file:
+    path: "{{ podman_containers_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the system Quadlet unit directory exists
+  ansible.builtin.file:
+    path: "{{ podman_quadlet_system_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy the container registries configuration
+  ansible.builtin.template:
+    src: registries.conf.j2
+    dest: "{{ podman_registries_conf_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: podman_manage_registries
+
+- name: Configure the rootless network backend
+  community.general.ini_file:
+    path: "{{ podman_containers_conf_path }}"
+    section: network
+    option: default_rootless_network_cmd
+    value: "{{ podman_rootless_network_cmd }}"
+    owner: root
+    group: root
+    mode: "0644"
+    create: true
+  when: podman_manage_containers_conf

@@ -1,0 +1,34 @@
+---
+- name: Gather the installed Podman version
+  ansible.builtin.command: podman --version
+  register: _podman_version_cmd
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Register the parsed Podman version
+  ansible.builtin.set_fact:
+    podman_installed_version: >-
+      {{ (_podman_version_cmd.stdout | regex_search(podman_version_regex, '\1') | first)
+         if _podman_version_cmd.rc == 0 and _podman_version_cmd.stdout | regex_search(podman_version_regex)
+         else '' }}
+
+- name: Assert Podman is new enough for Quadlet
+  ansible.builtin.assert:
+    that:
+      - podman_installed_version is version(podman_min_version_quadlet, '>=')
+    fail_msg: >-
+      Podman {{ podman_installed_version }} is installed but Quadlet requires
+      >= {{ podman_min_version_quadlet }}. Ubuntu 22.04 ships Podman 3.4 and
+      needs a backports or upstream repository to satisfy this.
+    success_msg: "Podman {{ podman_installed_version }} supports Quadlet"
+  when:
+    - podman_assert_quadlet_support
+    - podman_installed_version | length > 0
+
+- name: Warn when the Podman version could not be determined
+  ansible.builtin.debug:
+    msg: >-
+      Could not determine the Podman version, skipping the Quadlet support
+      check. This is expected in check mode on a host without Podman installed.
+  when: podman_installed_version | length == 0

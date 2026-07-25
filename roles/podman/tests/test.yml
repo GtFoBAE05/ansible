@@ -1,0 +1,29 @@
+---
+- name: Test the podman bootstrap role
+  hosts: podman_hosts
+  become: true
+  vars:
+    podman_rootless_users:
+      - name: testapp
+        count: 65536
+
+  pre_tasks:
+    - name: Ensure the test service account exists
+      ansible.builtin.user:
+        name: testapp
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: true
+        password: "!"
+
+  roles:
+    - role: podman
+
+  post_tasks:
+    - name: Verify Podman responds
+      ansible.builtin.command: podman info --format '{{ "{{" }}.Host.Arch{{ "}}" }}'
+      changed_when: false
+
+    - name: Verify the test user owns a subordinate UID range
+      ansible.builtin.command: grep -q '^testapp:' /etc/subuid
+      changed_when: false

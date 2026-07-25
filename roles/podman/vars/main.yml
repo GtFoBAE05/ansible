@@ -1,0 +1,15 @@
+---
+# Internal constants. Do not override from inventory or playbooks.
+
+podman_subuid_file: /etc/subuid
+podman_subgid_file: /etc/subgid
+
+podman_containers_config_dir: /etc/containers
+podman_registries_conf_path: /etc/containers/registries.conf
+podman_containers_conf_path: /etc/containers/containers.conf
+
+# Quadlet unit directory for the root user.
+podman_quadlet_system_dir: /etc/containers/systemd
+
+# Regex capturing the version from `podman --version` output.
+podman_version_regex: 'podman version ([0-9]+\.[0-9]+\.[0-9]+)'

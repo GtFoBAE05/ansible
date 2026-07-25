@@ -1,0 +1,47 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ../../../../requirements.yml
+driver:
+  name: docker
+platforms:
+  - name: podman-app-ubuntu2404
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    pre_build_image: true
+    privileged: true
+    # See roles/podman/molecule/default/molecule.yml for why this is needed.
+    override_command: false
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - podman_app_hosts
+  - name: podman-app-rockylinux9
+    image: "geerlingguy/docker-rockylinux9-ansible:latest"
+    pre_build_image: true
+    privileged: true
+    # See roles/podman/molecule/default/molecule.yml for why this is needed.
+    override_command: false
+    cgroupns_mode: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    groups:
+      - podman_app_hosts
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/.."
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+verifier:
+  name: ansible
+scenario:
+  test_sequence:
+    - dependency
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy

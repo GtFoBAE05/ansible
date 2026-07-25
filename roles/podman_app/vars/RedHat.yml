@@ -1,0 +1,6 @@
+---
+# EL places nologin in /sbin, which is symlinked to /usr/sbin.
+podman_app_nologin_shell: /sbin/nologin
+
+# SELinux is enforcing by default; host directory mounts need relabelling.
+podman_app_selinux_volume_flag: ":Z"

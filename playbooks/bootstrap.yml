@@ -1,0 +1,6 @@
+---
+- name: Setup intial server
+  hosts: vps
+
+  roles:
+    - podman

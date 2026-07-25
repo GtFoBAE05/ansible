@@ -1,0 +1,12 @@
+---
+- name: Prepare
+  hosts: podman_hosts
+  become: true
+  tasks:
+    - name: Ensure the rootless test service account exists
+      ansible.builtin.user:
+        name: molecule_app
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: true
+        password: "!"

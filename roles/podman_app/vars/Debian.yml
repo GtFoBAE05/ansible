@@ -1,0 +1,6 @@
+---
+# Debian and Ubuntu place nologin in /usr/sbin.
+podman_app_nologin_shell: /usr/sbin/nologin
+
+# SELinux is not enforcing by default, so volume relabelling flags are unused.
+podman_app_selinux_volume_flag: ""

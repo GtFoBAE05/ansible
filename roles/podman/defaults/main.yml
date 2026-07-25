@@ -1,0 +1,67 @@
+---
+# Package version pinning. Leave empty to install the distro's latest available
+# version. Set to an exact package version string to pin, e.g. "5:5.4.0-1".
+podman_version: ""
+
+# Package state. Ignored when podman_version is set (then "present" is forced).
+podman_package_state: present
+
+# Install rootless prerequisites (network backends, fuse-overlayfs).
+podman_install_rootless_prereqs: true
+
+# Network backends to install. pasta is the default rootless backend since
+# Podman 5.0; slirp4netns remains the default on 4.x. Both are installed by
+# default so the role works across Podman 4.x and 5.x without assumptions.
+podman_install_pasta: true
+podman_install_slirp4netns: true
+
+# Minimum Podman version required for Quadlet support. Enforced when
+# podman_assert_quadlet_support is true.
+podman_min_version_quadlet: "4.4"
+podman_assert_quadlet_support: true
+
+# Optional extra APT repository, needed on Ubuntu 22.04 whose archive ships
+# Podman 3.4 (too old for Quadlet). Disabled by default: point this at your own
+# internal mirror or a vendor repository you trust. The former Kubic
+# libcontainers repo is dead upstream and must not be used.
+podman_enable_extra_repo: false
+podman_extra_repo_url: ""
+podman_extra_repo_key_url: ""
+podman_extra_repo_keyring_path: /etc/apt/keyrings/podman-extra.gpg
+podman_extra_repo_filename: podman-extra
+podman_extra_repo_components: "/"
+podman_extra_repo_suite: ""
+# Pin the extra repo so it only supplies Podman and its container stack,
+# instead of overriding unrelated packages from the distro archive.
+podman_extra_repo_pin_priority: 600
+podman_extra_repo_pin_packages: "podman podman-* buildah skopeo conmon crun containers-common catatonit netavark aardvark-dns passt"
+
+# Users that need rootless Podman. Each entry is a mapping:
+#   - name: appuser              # required, must already exist or be created elsewhere
+#     subuid_start: 200000       # optional, auto-allocated when omitted
+#     subgid_start: 200000       # optional, defaults to subuid_start
+#     count: 65536               # optional, defaults to podman_subid_count
+podman_rootless_users: []
+
+# Size of each subordinate UID/GID range.
+podman_subid_count: 65536
+
+# First subordinate ID handed out by the auto-allocator. Ranges below this are
+# treated as reserved (distro defaults typically start at 100000).
+podman_subid_auto_start: 200000
+
+# Run `podman system migrate` for a user whose subuid/subgid ranges changed.
+# Required for the new mapping to take effect on an existing installation.
+podman_system_migrate_on_change: true
+
+# Enable systemd linger so rootless user services start at boot.
+podman_enable_linger: true
+
+# Manage /etc/containers/registries.conf search order.
+podman_manage_registries: false
+podman_registries_search: []
+podman_registries_insecure: []
+
+# Manage the containers.conf network backend selection.
+podman_manage_containers_conf: false
+podman_rootless_network_cmd: pasta

@@ -1,0 +1,60 @@
+---
+- name: Resolve the service account UID for removal
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ podman_app_user }}"
+  become: true
+  register: _podman_app_removal_passwd
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Register whether the service account still exists
+  ansible.builtin.set_fact:
+    podman_app_uid: >-
+      {{ ansible_facts.getent_passwd[podman_app_user][1]
+         if (not ansible_check_mode and ansible_facts.getent_passwd is defined
+             and podman_app_user in ansible_facts.getent_passwd
+             and ansible_facts.getent_passwd[podman_app_user] is not none)
+         else '' }}
+
+- name: Stop and disable the application service
+  ansible.builtin.systemd_service:
+    name: "{{ podman_app_service_name }}"
+    scope: user
+    enabled: false
+    state: stopped
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - podman_app_uid | length > 0
+
+- name: Remove the Quadlet container unit
+  ansible.builtin.file:
+    path: "{{ podman_app_unit_file }}"
+    state: absent
+  become: true
+  when: podman_app_uid | length > 0
+
+- name: Reload the user systemd manager after unit removal
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - podman_app_uid | length > 0
+
+- name: Disable systemd linger for the service account
+  ansible.builtin.command:
+    argv: [loginctl, disable-linger, "{{ podman_app_user }}"]
+    removes: "{{ podman_app_linger_marker }}"
+  become: true
+  when: podman_app_uid | length > 0

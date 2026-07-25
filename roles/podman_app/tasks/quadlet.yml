@@ -1,0 +1,49 @@
+---
+- name: Ensure the rootless Quadlet unit directory exists
+  ansible.builtin.file:
+    path: "{{ podman_app_quadlet_dir }}"
+    state: directory
+    owner: "{{ podman_app_user }}"
+    group: "{{ podman_app_group }}"
+    mode: "0750"
+  become: true
+
+- name: Deploy the Quadlet container unit
+  ansible.builtin.template:
+    src: app.container.j2
+    dest: "{{ podman_app_unit_file }}"
+    owner: "{{ podman_app_user }}"
+    group: "{{ podman_app_group }}"
+    mode: "{{ '0600' if podman_app_secret_env | length > 0 else '0640' }}"
+  become: true
+  register: _podman_app_unit
+  notify: Restart podman app service
+
+- name: Pull the container image as the service account
+  containers.podman.podman_image:
+    name: "{{ podman_app_image }}"
+    state: present
+    force: false
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  when:
+    - podman_app_pull_image
+    - not ansible_check_mode
+  register: _podman_app_pull
+  retries: 3
+  delay: 5
+  until: _podman_app_pull is succeeded
+
+- name: Reload the user systemd manager to regenerate Quadlet units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+    scope: user
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  when:
+    - _podman_app_unit is changed
+    - not ansible_check_mode

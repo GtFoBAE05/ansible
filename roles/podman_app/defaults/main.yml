@@ -1,0 +1,115 @@
+---
+# ---------------------------------------------------------------------------
+# Required parameters. Both are validated by tasks/assert.yml.
+# ---------------------------------------------------------------------------
+
+# Unique application name. Drives the service account name, the Quadlet unit
+# file name and the resulting systemd unit ("<name>.service").
+podman_app_name: ""
+
+# Fully qualified container image, including the registry and a tag or digest.
+# Digest pinning is strongly recommended for production.
+podman_app_image: ""
+
+# ---------------------------------------------------------------------------
+# Service account
+# ---------------------------------------------------------------------------
+
+podman_app_user: "{{ podman_app_name }}"
+podman_app_group: "{{ podman_app_user }}"
+podman_app_home: "/var/lib/{{ podman_app_user }}"
+podman_app_shell: /usr/sbin/nologin
+podman_app_system_user: true
+
+# Explicit subordinate ID range for this app's account. Leave unset to let the
+# podman role auto-allocate the next free range.
+podman_app_subuid_start: ""
+podman_app_subid_count: 65536
+
+# ---------------------------------------------------------------------------
+# Container runtime configuration
+# ---------------------------------------------------------------------------
+
+# Published ports, Quadlet PublishPort= syntax: "hostPort:containerPort".
+# Bind to a loopback address (e.g. "127.0.0.1:8080:80") when a reverse proxy
+# fronts the app. Rootless containers cannot bind ports below 1024 unless
+# net.ipv4.ip_unprivileged_port_start is lowered on the host.
+podman_app_ports: []
+
+# Volumes, Quadlet Volume= syntax: "source:/container/path:options".
+# Use the :Z SELinux relabel option on EL hosts for host directory mounts.
+podman_app_volumes: []
+
+# Host directories to create and own before the container starts. Each entry:
+#   - path: /var/lib/myapp/data
+#     mode: "0750"
+podman_app_directories: []
+
+# Environment variables passed into the container.
+podman_app_env: {}
+
+# Secrets injected as environment variables. Supply via vault, never in plain
+# inventory. Rendered into the unit file with 0600 permissions.
+podman_app_secret_env: {}
+
+# Extra raw lines appended to the [Container] section for keys this role does
+# not model explicitly.
+podman_app_container_options: []
+
+podman_app_command: ""
+podman_app_entrypoint: ""
+podman_app_network: ""
+podman_app_hostname: ""
+
+# Run the container process as this UID/GID inside the user namespace.
+podman_app_run_uid: ""
+podman_app_run_gid: ""
+
+# ---------------------------------------------------------------------------
+# Resource limits
+# ---------------------------------------------------------------------------
+
+# Requires cgroups v2 with the cpu and memory controllers delegated to the
+# user slice (default on EL9+ and Ubuntu 22.04+).
+podman_app_memory_limit: ""
+podman_app_memory_swap_limit: ""
+podman_app_cpu_quota: ""
+podman_app_pids_limit: ""
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+podman_app_healthcheck_command: ""
+podman_app_healthcheck_interval: 30s
+podman_app_healthcheck_retries: 3
+podman_app_healthcheck_start_period: 10s
+podman_app_healthcheck_timeout: 5s
+
+# ---------------------------------------------------------------------------
+# systemd behaviour
+# ---------------------------------------------------------------------------
+
+podman_app_restart_policy: always
+podman_app_restart_sec: 10
+podman_app_timeout_start_sec: 300
+podman_app_wanted_by: default.target
+
+# AutoUpdate policy: "registry", "local" or "" to disable.
+podman_app_autoupdate: registry
+
+# Enable podman-auto-update.timer for the service account.
+podman_app_enable_autoupdate_timer: false
+
+# Pull the image during the Ansible run rather than on first service start.
+podman_app_pull_image: true
+
+# Start and enable the generated service.
+podman_app_service_enabled: true
+podman_app_service_state: started
+
+# Restart the service when the unit file changes.
+podman_app_restart_on_change: true
+
+# Remove the app entirely (unit, account, data) when set to "absent".
+podman_app_state: present

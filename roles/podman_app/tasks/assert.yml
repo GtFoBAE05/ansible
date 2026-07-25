@@ -1,0 +1,107 @@
+---
+- name: Assert the application name is set and usable as a unit name
+  ansible.builtin.assert:
+    that:
+      - podman_app_name is string
+      - podman_app_name | length > 0
+      - podman_app_name is match('^[a-z0-9][a-z0-9_-]*$')
+      - podman_app_name | length <= 32
+    fail_msg: >-
+      'podman_app_name' is required and must be a lowercase string of at most
+      32 characters containing only letters, digits, hyphens and underscores,
+      starting with a letter or digit. It becomes both the service account
+      name and the systemd unit name. Got: '{{ podman_app_name | default('') }}'.
+    success_msg: "Application name '{{ podman_app_name }}' is valid"
+
+- name: Assert the container image is fully qualified
+  ansible.builtin.assert:
+    that:
+      - podman_app_image is string
+      - podman_app_image | length > 0
+      - "'/' in podman_app_image"
+      - podman_app_image is search(':') or podman_app_image is search('@sha256:')
+    fail_msg: >-
+      'podman_app_image' is required and must be a fully qualified image
+      reference including registry and tag or digest, for example
+      'docker.io/library/nginx:1.27-alpine' or
+      'registry.example.com/team/app@sha256:abc...'. Short names are rejected
+      because they depend on the host's unqualified-search-registries order.
+      Got: '{{ podman_app_image | default('') }}'.
+    success_msg: "Image '{{ podman_app_image }}' is fully qualified"
+
+- name: Assert the restart policy is valid
+  ansible.builtin.assert:
+    that:
+      - podman_app_restart_policy | string in podman_app_valid_restart_policies
+    fail_msg: >-
+      'podman_app_restart_policy' must be one of
+      {{ podman_app_valid_restart_policies | join(', ') }}.
+      Got: '{{ podman_app_restart_policy }}'.
+
+- name: Assert the autoupdate policy is valid
+  ansible.builtin.assert:
+    that:
+      - podman_app_autoupdate | string in podman_app_valid_autoupdate
+    fail_msg: >-
+      'podman_app_autoupdate' must be one of 'registry', 'local' or an empty
+      string to disable. Got: '{{ podman_app_autoupdate }}'.
+
+- name: Assert the requested state is valid
+  ansible.builtin.assert:
+    that:
+      - podman_app_state | string in podman_app_valid_states
+    fail_msg: >-
+      'podman_app_state' must be 'present' or 'absent'.
+      Got: '{{ podman_app_state }}'.
+
+- name: Assert AutoUpdate is not combined with a digest pinned image
+  ansible.builtin.assert:
+    that:
+      - not (podman_app_autoupdate == 'registry' and podman_app_image is search('@sha256:'))
+    fail_msg: >-
+      'podman_app_autoupdate' is 'registry' but 'podman_app_image' is pinned to
+      a digest, so the image can never be updated. Use a tag for autoupdate, or
+      set podman_app_autoupdate to '' when pinning by digest.
+
+- name: Assert port mappings are well formed
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item is match('^([0-9a-fA-F.:\[\]]+:)?[0-9]+(-[0-9]+)?:[0-9]+(-[0-9]+)?(/(tcp|udp))?$')
+    fail_msg: >-
+      Invalid entry in 'podman_app_ports': '{{ item }}'. Expected Quadlet
+      PublishPort syntax, for example '8080:80', '127.0.0.1:8080:80' or
+      '8080:80/udp'.
+  loop: "{{ podman_app_ports }}"
+
+- name: Assert volume definitions are well formed
+  ansible.builtin.assert:
+    that:
+      - item is string
+      - item | length > 0
+      - item.split(':') | length >= 2
+    fail_msg: >-
+      Invalid entry in 'podman_app_volumes': '{{ item }}'. Expected
+      'source:/container/path' with optional flags, for example
+      '/var/lib/myapp/data:/data:Z'.
+  loop: "{{ podman_app_volumes }}"
+
+- name: Assert managed directory definitions are well formed
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.path is defined
+      - item.path is match('^/')
+    fail_msg: >-
+      Invalid entry in 'podman_app_directories': {{ item | to_json }}.
+      Each entry must be a mapping with an absolute 'path'.
+  loop: "{{ podman_app_directories }}"
+
+- name: Assert environment variable mappings are dictionaries
+  ansible.builtin.assert:
+    that:
+      - podman_app_env is mapping
+      - podman_app_secret_env is mapping
+    fail_msg: >-
+      'podman_app_env' and 'podman_app_secret_env' must be dictionaries of
+      KEY: value pairs.

@@ -1,0 +1,12 @@
+---
+- name: Assert the target system runs systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_service_mgr == 'systemd'
+    fail_msg: >-
+      The podman role requires systemd (found init system '{{ ansible_service_mgr }}').
+      Quadlet units and rootless linger both depend on systemd.
+    success_msg: systemd detected
+
+- name: Validate podman_rootless_users
+  ansible.builtin.import_tasks: assert-rootless-users.yml

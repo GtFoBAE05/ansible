@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  role_name: podman
+  namespace: infra
+  author: Infrastructure Team
+  description: >-
+    Installs Podman and prepares rootless prerequisites (subuid/subgid ranges,
+    network backends, linger). Deploys no containers.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: EL
+      versions:
+        - all
+  galaxy_tags:
+    - podman
+    - containers
+    - rootless
+    - quadlet
+
+dependencies: []

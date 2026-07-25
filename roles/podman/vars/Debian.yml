@@ -1,0 +1,9 @@
+---
+podman_package_name: podman
+podman_pasta_package: passt
+podman_slirp4netns_package: slirp4netns
+podman_fuse_overlayfs_package: fuse-overlayfs
+podman_uidmap_package: uidmap
+
+podman_extra_packages:
+  - dbus-user-session

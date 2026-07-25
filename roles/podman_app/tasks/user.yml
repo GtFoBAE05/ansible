@@ -1,0 +1,73 @@
+---
+- name: Ensure the application group exists
+  ansible.builtin.group:
+    name: "{{ podman_app_group }}"
+    system: "{{ podman_app_system_user }}"
+    state: present
+  become: true
+
+- name: Ensure the application service account exists
+  ansible.builtin.user:
+    name: "{{ podman_app_user }}"
+    group: "{{ podman_app_group }}"
+    home: "{{ podman_app_home }}"
+    shell: "{{ podman_app_shell }}"
+    system: "{{ podman_app_system_user }}"
+    create_home: true
+    password: "!"
+    password_lock: true
+    state: present
+  become: true
+  register: _podman_app_account
+
+- name: Resolve the service account UID
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ podman_app_user }}"
+  become: true
+  when: not ansible_check_mode
+
+- name: Register the service account UID
+  ansible.builtin.set_fact:
+    podman_app_uid: >-
+      {{ (ansible_facts.getent_passwd[podman_app_user][1])
+         if (not ansible_check_mode and ansible_facts.getent_passwd is defined
+             and podman_app_user in ansible_facts.getent_passwd)
+         else (_podman_app_account.uid | default('0')) }}
+
+- name: Ensure the service account home directory is correctly owned
+  ansible.builtin.file:
+    path: "{{ podman_app_home }}"
+    state: directory
+    owner: "{{ podman_app_user }}"
+    group: "{{ podman_app_group }}"
+    mode: "0750"
+  become: true
+
+- name: Ensure subordinate ID ranges exist for the service account
+  ansible.builtin.include_role:
+    name: podman
+    tasks_from: rootless.yml
+  vars:
+    # NOTE: `omit` does not work inside a hand-built dict/list literal like this
+    # one — it only omits a key when passed directly as a module parameter. So
+    # this passes the raw (possibly empty) string through; rootless.yml's
+    # `default(..., true)` on subuid_start already treats an empty string the
+    # same as unset.
+    podman_rootless_users:
+      - name: "{{ podman_app_user }}"
+        count: "{{ podman_app_subid_count }}"
+        subuid_start: "{{ podman_app_subuid_start }}"
+    podman_enable_linger: true
+
+- name: Ensure application data directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default(podman_app_user) }}"
+    group: "{{ item.group | default(podman_app_group) }}"
+    mode: "{{ item.mode | default('0750') }}"
+  become: true
+  loop: "{{ podman_app_directories }}"
+  loop_control:
+    label: "{{ item.path }}"

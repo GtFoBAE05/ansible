@@ -1,0 +1,37 @@
+---
+- name: Validate role parameters
+  ansible.builtin.import_tasks: assert.yml
+  tags: [always, podman-app, podman-app-validate]
+
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', _podman_app_vars_params) }}"
+  vars:
+    _podman_app_vars_params:
+      files:
+        - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+  tags: [always, podman-app]
+
+- name: Remove the application
+  ansible.builtin.import_tasks: remove.yml
+  when: podman_app_state == 'absent'
+  tags: [podman-app, podman-app-remove]
+
+- name: Provision the application service account
+  ansible.builtin.import_tasks: user.yml
+  when: podman_app_state == 'present'
+  tags: [podman-app, podman-app-user]
+
+- name: Deploy the Quadlet unit
+  ansible.builtin.import_tasks: quadlet.yml
+  when: podman_app_state == 'present'
+  tags: [podman-app, podman-app-quadlet]
+
+- name: Manage the application service
+  ansible.builtin.import_tasks: service.yml
+  when: podman_app_state == 'present'
+  tags: [podman-app, podman-app-service]

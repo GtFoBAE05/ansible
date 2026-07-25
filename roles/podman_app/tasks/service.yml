@@ -1,0 +1,27 @@
+---
+- name: Ensure the generated application service is enabled and running
+  ansible.builtin.systemd_service:
+    name: "{{ podman_app_service_name }}"
+    scope: user
+    enabled: "{{ podman_app_service_enabled }}"
+    state: "{{ podman_app_service_state }}"
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  when: not ansible_check_mode
+
+- name: Ensure the auto-update timer is enabled for the service account
+  ansible.builtin.systemd_service:
+    name: podman-auto-update.timer
+    scope: user
+    enabled: true
+    state: started
+  become: true
+  become_user: "{{ podman_app_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "{{ podman_app_xdg_runtime_dir }}"
+  when:
+    - podman_app_enable_autoupdate_timer
+    - podman_app_autoupdate | length > 0
+    - not ansible_check_mode

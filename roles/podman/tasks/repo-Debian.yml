@@ -1,0 +1,59 @@
+---
+- name: Assert the extra repository is fully configured
+  ansible.builtin.assert:
+    that:
+      - podman_extra_repo_url | length > 0
+      - podman_extra_repo_key_url | length > 0
+    fail_msg: >-
+      'podman_enable_extra_repo' is true, so both 'podman_extra_repo_url' and
+      'podman_extra_repo_key_url' must be set. Point them at an internal mirror
+      or a vendor repository you trust. The former Kubic libcontainers repo is
+      unmaintained upstream and must not be used.
+
+- name: Ensure the APT keyring directory exists
+  ansible.builtin.file:
+    path: "{{ podman_extra_repo_keyring_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the extra repository signing key
+  ansible.builtin.get_url:
+    url: "{{ podman_extra_repo_key_url }}"
+    dest: "{{ podman_extra_repo_keyring_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  register: _podman_repo_key
+  retries: 3
+  delay: 5
+  until: _podman_repo_key is succeeded
+
+- name: Configure the extra Podman repository
+  vars:
+    # A flat repository has no suite and is written as "<url> /". A regular one
+    # is written as "<url> <suite> <components>".
+    _podman_repo_tail: >-
+      {{ podman_extra_repo_components
+         if podman_extra_repo_suite | length == 0
+         else podman_extra_repo_suite ~ ' ' ~ podman_extra_repo_components }}
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ podman_extra_repo_keyring_path }}] {{ podman_extra_repo_url }} {{ _podman_repo_tail }}"
+    filename: "{{ podman_extra_repo_filename }}"
+    state: present
+    update_cache: true
+
+- name: Restrict the extra repository to the container stack
+  ansible.builtin.copy:
+    content: |
+      {{ ansible_managed | comment }}
+      Package: {{ podman_extra_repo_pin_packages }}
+      Pin: origin "{{ podman_extra_repo_url | regex_replace('^https?://([^/]+).*$', '\1') }}"
+      Pin-Priority: {{ podman_extra_repo_pin_priority }}
+    dest: "/etc/apt/preferences.d/{{ podman_extra_repo_filename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Update apt cache

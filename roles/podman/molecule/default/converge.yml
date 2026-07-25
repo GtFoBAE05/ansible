@@ -1,0 +1,6 @@
+---
+- name: Converge
+  hosts: podman_hosts
+  become: true
+  roles:
+    - role: podman

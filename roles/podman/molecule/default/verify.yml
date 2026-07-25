@@ -1,0 +1,35 @@
+---
+- name: Verify
+  hosts: podman_hosts
+  become: true
+  tasks:
+    - name: Gather the installed Podman version
+      ansible.builtin.command: podman --version
+      register: podman_version_cmd
+      changed_when: false
+
+    - name: Assert Podman is installed and reports a version
+      ansible.builtin.assert:
+        that:
+          - podman_version_cmd.rc == 0
+          - "'podman version' in podman_version_cmd.stdout | lower"
+
+    - name: Read the subordinate UID assignments
+      ansible.builtin.slurp:
+        src: /etc/subuid
+      register: subuid_raw
+
+    - name: Assert the test user owns a subordinate UID range
+      ansible.builtin.assert:
+        that:
+          - "'molecule_app:' in (subuid_raw.content | b64decode)"
+
+    - name: Check whether linger is enabled for the test user
+      ansible.builtin.stat:
+        path: /var/lib/systemd/linger/molecule_app
+      register: linger_marker
+
+    - name: Assert linger is enabled for the test user
+      ansible.builtin.assert:
+        that:
+          - linger_marker.stat.exists

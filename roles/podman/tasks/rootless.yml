@@ -1,0 +1,138 @@
+---
+# The `user` module only assigns subordinate ID ranges when it creates a brand
+# new account, and only when the distro's useradd defaults enable it. Existing
+# accounts are never touched. These tasks therefore read the current state of
+# /etc/subuid and /etc/subgid and assign ranges explicitly with usermod.
+#
+# Public interface: podman_app calls this file directly via
+# `include_role: {name: podman, tasks_from: rootless.yml}` to provision a
+# single app's subordinate ID range, bypassing main.yml/assert.yml. The
+# contract is: set podman_rootless_users (and optionally podman_enable_linger,
+# podman_subid_count, podman_subid_auto_start, podman_system_migrate_on_change)
+# and this file provisions exactly those users. See podman/README.md.
+
+- name: Validate podman_rootless_users
+  ansible.builtin.import_tasks: assert-rootless-users.yml
+
+- name: Ensure the subordinate ID files exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - "{{ podman_subuid_file }}"
+    - "{{ podman_subgid_file }}"
+
+- name: Read the current subordinate UID assignments
+  ansible.builtin.slurp:
+    src: "{{ podman_subuid_file }}"
+  register: _podman_subuid_raw
+  check_mode: false
+
+- name: Read the current subordinate GID assignments
+  ansible.builtin.slurp:
+    src: "{{ podman_subgid_file }}"
+  register: _podman_subgid_raw
+  check_mode: false
+
+- name: Parse the existing subordinate ID assignments
+  ansible.builtin.set_fact:
+    _podman_subuid_entries: "{{ _podman_subuid_raw['content'] | b64decode | podman_parse_subid }}"
+    _podman_subgid_entries: "{{ _podman_subgid_raw['content'] | b64decode | podman_parse_subid }}"
+
+- name: Determine which users already own subordinate ranges
+  ansible.builtin.set_fact:
+    _podman_subuid_owners: "{{ _podman_subuid_entries | map(attribute='name') | list }}"
+    _podman_subgid_owners: "{{ _podman_subgid_entries | map(attribute='name') | list }}"
+    _podman_subid_next_free: >-
+      {{ ([podman_subid_auto_start | int]
+          + ((_podman_subuid_entries + _podman_subgid_entries)
+             | map(attribute='next_free') | list))
+         | max }}
+
+# _podman_subid_plan is a host fact, so it survives past this task file and
+# would otherwise leak into the next invocation of this file — e.g. podman_app
+# calls rootless.yml once per app instance in the same play. Reset it here so
+# each invocation only ever plans for its own podman_rootless_users.
+- name: Reset the subordinate ID assignment plan for this invocation
+  ansible.builtin.set_fact:
+    _podman_subid_plan: []
+
+- name: Build the subordinate ID assignment plan
+  ansible.builtin.set_fact:
+    _podman_subid_plan: "{{ _podman_subid_plan | default([]) + [_podman_entry] }}"
+  vars:
+    _podman_count: "{{ item.count | default(podman_subid_count) | int }}"
+    _podman_allocated: >-
+      {{ (_podman_subid_plan | default([]) | map(attribute='count') | map('int') | sum) }}
+    _podman_start: >-
+      {{ item.subuid_start | default((_podman_subid_next_free | int) + (_podman_allocated | int), true) | int }}
+    _podman_entry:
+      name: "{{ item.name }}"
+      count: "{{ _podman_count | int }}"
+      start: "{{ _podman_start | int }}"
+      range: "{{ _podman_start | int }}-{{ (_podman_start | int) + (_podman_count | int) - 1 }}"
+      needed: "{{ item.name not in _podman_subuid_owners or item.name not in _podman_subgid_owners }}"
+  loop: "{{ podman_rootless_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Assign subordinate UID and GID ranges to rootless users
+  ansible.builtin.command:
+    argv:
+      - usermod
+      - --add-subuids
+      - "{{ item.range }}"
+      - --add-subgids
+      - "{{ item.range }}"
+      - "{{ item.name }}"
+  loop: "{{ _podman_subid_plan | default([]) | selectattr('needed', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.name }} -> {{ item.range }}"
+  register: _podman_subid_assigned
+  changed_when: true
+
+- name: Look up the UID of each rootless user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ item.name }}"
+  loop: "{{ podman_rootless_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+# Linger must be enabled before `podman system migrate` runs below: systemd-logind
+# only creates /run/user/<uid> (XDG_RUNTIME_DIR) once linger starts that user's
+# manager instance, or once the user has an active login session. Without it,
+# podman fails with "lstat /run/user/<uid>: no such file or directory".
+- name: Enable systemd linger for rootless users
+  ansible.builtin.command:
+    argv: [loginctl, enable-linger, "{{ item.name }}"]
+    creates: "/var/lib/systemd/linger/{{ item.name }}"
+  loop: "{{ podman_rootless_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: podman_enable_linger
+
+- name: Migrate Podman storage for users whose subordinate ranges changed
+  ansible.builtin.command:
+    argv: [podman, system, migrate]
+  become: true
+  become_user: "{{ item.name }}"
+  environment:
+    # getent accumulates into the ansible_facts.getent_passwd host fact as it
+    # loops, so the lookup above is enough — no need to cross-reference
+    # registered results (that was fragile across repeated role invocations,
+    # e.g. podman_app calling this file once per app instance).
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts.getent_passwd[item.name][1] }}"
+  loop: "{{ _podman_subid_assigned.results | default([]) | rejectattr('skipped', 'defined') | map(attribute='item') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - podman_system_migrate_on_change
+    - not ansible_check_mode
+  changed_when: true

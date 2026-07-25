@@ -1,0 +1,39 @@
+---
+- name: Verify
+  hosts: podman_app_hosts
+  become: true
+  tasks:
+    - name: Look up the UID of each test service account
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ item }}"
+      loop:
+        - molecweb
+        - molecache
+      register: test_uids
+
+    - name: Verify both application services are active
+      ansible.builtin.systemd_service:
+        name: "{{ item.item }}.service"
+        scope: user
+      become: true
+      become_user: "{{ item.item }}"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ item.ansible_facts.getent_passwd[item.item][1] }}"
+      register: service_status
+      loop: "{{ test_uids.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Assert both services are active
+      ansible.builtin.assert:
+        that:
+          - item.status.ActiveState == 'active'
+      loop: "{{ service_status.results }}"
+      loop_control:
+        label: "{{ item.item.item }}"
+
+    - name: Verify the web app answers on its published port
+      ansible.builtin.uri:
+        url: http://127.0.0.1:18080/
+        status_code: [200]

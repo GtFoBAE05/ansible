@@ -1,0 +1,17 @@
+---
+- name: Install Podman
+  ansible.builtin.package:
+    name: "{{ podman_package_name }}"
+    state: "{{ podman_package_state }}"
+
+- name: Install rootless prerequisite packages
+  ansible.builtin.package:
+    name: "{{ _podman_rootless_packages }}"
+    state: present
+  vars:
+    _podman_rootless_packages: >-
+      {{ ([podman_fuse_overlayfs_package, podman_uidmap_package]
+          + ([podman_pasta_package] if podman_install_pasta else [])
+          + ([podman_slirp4netns_package] if podman_install_slirp4netns else [])
+          + podman_extra_packages) | unique }}
+  when: podman_install_rootless_prereqs

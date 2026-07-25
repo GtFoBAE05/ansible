@@ -1,0 +1,59 @@
+---
+# podman_app declares this role as a meta dependency and sets
+# allow_duplicates, so this role runs again for every app instance. The guard
+# fact makes every pass after the first a no-op within a single play run.
+- name: Check whether the bootstrap role already ran on this host
+  ansible.builtin.set_fact:
+    _podman_bootstrap_pending: "{{ not (podman_bootstrap_completed | default(false)) or podman_force_bootstrap | default(false) }}"
+  tags: [always, podman]
+
+- name: Validate role parameters
+  ansible.builtin.import_tasks: assert.yml
+  when: _podman_bootstrap_pending
+  tags: [always, podman, podman-validate]
+
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', _podman_vars_params) }}"
+  when: _podman_bootstrap_pending
+  vars:
+    _podman_vars_params:
+      files:
+        - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+  tags: [always, podman]
+
+- name: Install Podman packages
+  ansible.builtin.include_tasks: "{{ lookup('ansible.builtin.first_found', _podman_install_params) }}"
+  vars:
+    _podman_install_params:
+      files:
+        - "install-{{ ansible_os_family }}.yml"
+        - install-default.yml
+      paths:
+        - "{{ role_path }}/tasks"
+  when: _podman_bootstrap_pending
+  tags: [podman, podman-install]
+
+- name: Verify installed Podman supports Quadlet
+  ansible.builtin.import_tasks: verify.yml
+  when: _podman_bootstrap_pending
+  tags: [podman, podman-install, podman-verify]
+
+- name: Configure Podman
+  ansible.builtin.import_tasks: configure.yml
+  when: _podman_bootstrap_pending
+  tags: [podman, podman-config]
+
+- name: Configure rootless prerequisites
+  ansible.builtin.import_tasks: rootless.yml
+  when: _podman_bootstrap_pending
+  tags: [podman, podman-rootless]
+
+- name: Mark the bootstrap role as completed for this host
+  ansible.builtin.set_fact:
+    podman_bootstrap_completed: true
+  tags: [always, podman]
