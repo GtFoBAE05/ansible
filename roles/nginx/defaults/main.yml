@@ -1,0 +1,188 @@
+---
+# ===========================================================================
+# nginx role — public API. Everything here is safe to override from inventory
+# or a playbook. Internal constants live in vars/main.yml (do not override).
+# ===========================================================================
+
+# Desired end state for nginx on the host.
+#   present -> package + config + service managed
+#   absent  -> service stopped/disabled and role-managed vhosts removed. Web
+#              roots and logs (/var/log/nginx) are preserved; see the README.
+nginx_state: present
+
+# --- Installation -----------------------------------------------------------
+
+# nginx ships in the base repositories of every supported distro, so by default
+# the role installs the distro package and configures NO third-party repo.
+# Set to true to use nginx's OWN official repository (nginx.org) for newer
+# stable/mainline builds. Supported on the Debian family and the RHEL family
+# (rhel path) only -- NOT on Fedora (asserted).
+nginx_use_official_repo: false
+
+# nginx.org release channel when nginx_use_official_repo is true:
+#   stable   -> the stable branch
+#   mainline -> the mainline branch (newer features, still production-grade)
+nginx_repo_channel: stable
+
+# Pin an exact package version, e.g. "1.26.2". Leave empty for the repo's
+# latest. On the Debian family this is an apt version (name=<ver>); on the RHEL
+# family a dnf version (name-<ver>).
+nginx_version: ""
+
+# Package state when nginx_version is empty (present|latest). When a version is
+# pinned, "present" is forced regardless of this value.
+nginx_package_state: present
+
+# --- Service ----------------------------------------------------------------
+
+nginx_service_enabled: true
+# started | stopped | reloaded. Handlers still reload on config change unless
+# this is "stopped".
+nginx_service_state: started
+
+# --- Configuration ----------------------------------------------------------
+
+# Manage /etc/nginx/nginx.conf. Set false to leave the main config entirely to
+# the user (the role then only installs the package, manages vhosts in conf.d,
+# and controls the service).
+nginx_manage_config: true
+
+# Back up the existing nginx.conf whenever the role changes it.
+nginx_config_backup: true
+
+# How the main nginx.conf is produced (choose at most one of the first two):
+#   nginx_config_template : path to YOUR Jinja2 template (highest priority)
+#   nginx_config          : raw nginx.conf content as a string
+#   (neither)             : the role renders a sensible default nginx.conf from
+#                           the tunables below that includes conf.d/*.conf.
+nginx_config_template: ""
+nginx_config: ""
+
+# --- Tunables for the built-in default nginx.conf ---------------------------
+# (ignored when nginx_config_template or nginx_config is set)
+
+# The `user` directive. Empty -> the OS-family default (www-data on Debian,
+# nginx on RHEL). Override only if you run workers as a different account.
+nginx_user: ""
+
+nginx_worker_processes: auto
+nginx_worker_connections: 1024
+# Max open file descriptors per worker. worker_connections is silently capped by
+# this, so it must be >= worker_connections (each connection can hold several
+# FDs). Must also be <= the OS hard nofile limit (systemd LimitNOFILE) or nginx
+# warns/fails at start -- lower it if your host caps FDs below this.
+nginx_worker_rlimit_nofile: 65535
+nginx_keepalive_timeout: 65
+# Requests served over one kept-alive connection before it is closed. The distro
+# default (1000 on modern nginx, 100 on older) is conservative for keepalive-
+# heavy traffic; 1000 is a safe production value.
+nginx_keepalive_requests: 1000
+# Slowloris hardening: cap how long a client may take to send the body/headers
+# or receive the response, so a few slow clients cannot tie up workers.
+nginx_client_body_timeout: 30s
+nginx_client_header_timeout: 30s
+nginx_send_timeout: 30s
+# Immediately free memory/sockets tied to connections closed on timeout.
+nginx_reset_timedout_connection: "on"
+# Default charset appended to text Content-Type headers that lack one. Empty
+# disables the directive.
+nginx_charset: utf-8
+# open_file_cache caches open FDs/stat/lookups -- a real win for static file
+# servers with many files, but workload-dependent (can briefly serve stale
+# metadata on fast-changing trees), so it is OFF by default. Enable with e.g.
+# "max=10000 inactive=20s"; the companion valid/min_uses/errors settings below
+# apply only when this is non-empty.
+nginx_open_file_cache: ""
+nginx_open_file_cache_valid: 30s
+nginx_open_file_cache_min_uses: 2
+nginx_open_file_cache_errors: "on"
+# server_tokens off hides the nginx version in responses/error pages.
+nginx_server_tokens: "off"
+nginx_client_max_body_size: 1m
+nginx_gzip: true
+# MIME types compressed when nginx_gzip is true (text/html is always compressed
+# by nginx and must not be listed). Sub-settings (gzip_vary, comp_level, etc.)
+# are rendered with sane best-practice values in the template.
+nginx_gzip_types:
+  - text/plain
+  - text/css
+  - text/xml
+  - text/javascript
+  - application/json
+  - application/javascript
+  - application/xml
+  - application/xml+rss
+  - image/svg+xml
+# error_log severity: debug|info|notice|warn|error|crit|alert|emerg.
+nginx_error_log_level: warn
+
+# Extra raw lines injected verbatim, one directive per line.
+#   nginx_extra_conf_options -> main (top-level) context
+#   nginx_extra_http_options -> inside the http { } block
+nginx_extra_conf_options: ""
+nginx_extra_http_options: ""
+
+# --- Reusable snippets ------------------------------------------------------
+# Best-practice fragments deployed to /etc/nginx/snippets so a raw vhost can
+# `include /etc/nginx/snippets/<name>.conf;`. Absolute paths are used so the
+# pre-placement `nginx -t` (which stages the config in a temp dir) resolves them
+# the same as at runtime. A snippet is inert until included, so deploying them
+# is harmless. See the README for the intended vhost pattern.
+
+nginx_manage_snippets: true
+
+# static-cache.conf: aggressive caching + access_log off for static assets.
+# Include it inside a server block that has `root` set:
+#   include /etc/nginx/snippets/static-cache.conf;
+nginx_static_cache_snippet: true
+# Pipe-separated (regex) list of extensions the cache location matches.
+nginx_static_cache_extensions: "jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot"
+nginx_static_cache_expires: 30d
+nginx_static_cache_control: "public, no-transform"
+
+# security-headers.conf: baseline response headers (sent with `always` so they
+# apply to error responses too). Include inside a server block:
+#   include /etc/nginx/snippets/security-headers.conf;
+nginx_security_headers_snippet: true
+nginx_security_headers:
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Your own extra snippets, written to snippets/<key>.conf. Each value's
+# `content` is the raw fragment. Not auto-pruned (the snippets dir is shared
+# with package-shipped snippets, so blind pruning is unsafe).
+#   nginx_snippets:
+#     gzip-extra:
+#       content: |
+#         gzip_static on;
+nginx_snippets: {}
+
+# --- Virtual hosts (server blocks) ------------------------------------------
+
+# Server blocks written to conf.d as "<key>.conf" and picked up by nginx.conf's
+# include. Each value's `content` is the raw nginx server-block config.
+#   nginx_vhosts:
+#     example:
+#       content: |
+#         server {
+#             listen 80;
+#             server_name example.com;
+#             root /var/www/example;
+#         }
+nginx_vhosts: {}
+nginx_manage_vhost_dir: true
+# Remove *.conf files in conf.d that are not present in nginx_vhosts. Off by
+# default so out-of-band vhosts are never deleted by surprise. The vendor
+# default.conf is NOT pruned by this (use nginx_remove_default_vhost).
+nginx_prune_vhosts: false
+
+# Remove the vendor "default site" (conf.d/default.conf and, on Debian,
+# sites-enabled/default) so it does not occupy :80 alongside your vhosts.
+nginx_remove_default_vhost: false
+
+# --- Teardown ---------------------------------------------------------------
+
+# On nginx_state=absent, also uninstall the package. Off by default so an
+# accidental absent run does not remove the binary.
+nginx_remove_package: false

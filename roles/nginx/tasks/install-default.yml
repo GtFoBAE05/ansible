@@ -1,0 +1,15 @@
+---
+# Fallback for distros without an OS-family install file. There is no
+# official-repo automation here; the package must already be reachable from the
+# distribution's own repositories.
+- name: Warn that no repository automation exists for this distribution
+  ansible.builtin.debug:
+    msg: >-
+      No install-{{ ansible_os_family }}.yml exists for this distribution
+      ('{{ ansible_distribution }}'). Installing '{{ nginx_package_name }}'
+      directly; ensure a repository providing it is configured.
+
+- name: Install nginx
+  ansible.builtin.package:
+    name: "{{ nginx_package_name }}"
+    state: "{{ nginx_package_state }}"

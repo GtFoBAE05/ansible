@@ -1,0 +1,44 @@
+---
+- name: Validate role parameters
+  ansible.builtin.import_tasks: assert.yml
+  tags: [always, nginx, nginx-validate]
+
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', _nginx_vars_params) }}"
+  vars:
+    _nginx_vars_params:
+      files:
+        - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+  tags: [always, nginx]
+
+- name: Remove nginx
+  ansible.builtin.import_tasks: absent.yml
+  when: nginx_state == 'absent'
+  tags: [nginx, nginx-absent]
+
+- name: Install nginx
+  ansible.builtin.include_tasks: "{{ lookup('ansible.builtin.first_found', _nginx_install_params) }}"
+  vars:
+    _nginx_install_params:
+      files:
+        - "install-{{ ansible_os_family }}.yml"
+        - install-default.yml
+      paths:
+        - "{{ role_path }}/tasks"
+  when: nginx_state == 'present'
+  tags: [nginx, nginx-install]
+
+- name: Configure nginx
+  ansible.builtin.import_tasks: configure.yml
+  when: nginx_state == 'present'
+  tags: [nginx, nginx-config]
+
+- name: Manage the nginx service
+  ansible.builtin.import_tasks: service.yml
+  when: nginx_state == 'present'
+  tags: [nginx, nginx-service]

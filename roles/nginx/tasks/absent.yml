@@ -1,0 +1,49 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Stop and disable the nginx service
+  ansible.builtin.systemd_service:
+    name: "{{ nginx_service_name }}"
+    state: stopped
+    enabled: false
+  when: (nginx_service_name ~ '.service') in ansible_facts.services
+
+- name: Remove role-managed virtual hosts
+  ansible.builtin.file:
+    path: "{{ nginx_vhost_dir }}/{{ item.key }}.conf"
+    state: absent
+  loop: "{{ nginx_vhosts | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# Only the snippet files this role writes are removed -- never the whole
+# snippets directory, which is shared with package-shipped snippets
+# (e.g. Debian's fastcgi-php.conf).
+- name: Remove role-managed snippets
+  ansible.builtin.file:
+    path: "{{ nginx_snippets_dir }}/{{ item }}"
+    state: absent
+  loop: >-
+    {{ nginx_builtin_snippet_files
+       + (nginx_snippets | dict2items | map(attribute='key')
+          | map('regex_replace', '$', '.conf') | list) }}
+  loop_control:
+    label: "{{ item }}"
+
+- name: Uninstall the nginx package
+  ansible.builtin.package:
+    name: "{{ nginx_package_name }}"
+    state: absent
+  when: nginx_remove_package
+
+# NOTE: web roots and logs under /var/log/nginx are left in place on purpose;
+# deleting served content or access history as a side effect of a state flag
+# would be surprising and unrecoverable. The package keeps /etc/nginx unless
+# you purge it. Remove leftovers manually if you want a clean slate.
+- name: Report preserved data
+  ansible.builtin.debug:
+    msg: >-
+      nginx service stopped/disabled and role-managed vhosts removed. Web roots
+      and logs under /var/log/nginx are preserved. Remove them manually for a
+      full teardown.

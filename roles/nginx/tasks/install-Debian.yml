@@ -1,0 +1,19 @@
+---
+- name: Configure the official nginx apt repository
+  ansible.builtin.include_tasks: repo-Debian.yml
+  when: nginx_use_official_repo
+
+- name: Install repository prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ nginx_repo_prereq_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: nginx_repo_prereq_packages | length > 0
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: "{{ nginx_package_name }}{{ '=' + nginx_version if nginx_version | length > 0 else '' }}"
+    state: "{{ 'present' if nginx_version | length > 0 else nginx_package_state }}"
+    update_cache: true
+    cache_valid_time: 3600

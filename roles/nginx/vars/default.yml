@@ -1,0 +1,9 @@
+---
+# Fallback for distros without an OS-family file. The package name is still the
+# real one so an unsupported target fails on a missing package, not a missing
+# variable. There is no official-repo automation for unknown distros: leave
+# nginx_use_official_repo at its default (false) and use the distro package, or
+# preconfigure a repo yourself.
+nginx_package_name: nginx
+
+nginx_run_user: nginx

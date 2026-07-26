@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+# Baseline security response headers. Include inside a server block:
+#     include /etc/nginx/snippets/security-headers.conf;
+# `always` sends the headers on error responses (4xx/5xx) too.
+{% for key, value in nginx_security_headers | dictsort %}
+add_header {{ key }} "{{ value }}" always;
+{% endfor %}

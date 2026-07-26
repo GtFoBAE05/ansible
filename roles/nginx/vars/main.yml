@@ -1,0 +1,40 @@
+---
+# Internal constants. Do NOT override from inventory or playbooks. Anything a
+# user may reasonably change lives in defaults/main.yml instead.
+
+nginx_service_name: nginx
+
+nginx_config_dir: /etc/nginx
+nginx_config_file: /etc/nginx/nginx.conf
+# Portable vhost drop-in dir. Every supported distro's nginx.conf includes
+# conf.d/*.conf; the Debian-only sites-enabled scheme is deliberately not used.
+nginx_vhost_dir: /etc/nginx/conf.d
+
+# Reusable include fragments, referenced by ABSOLUTE path
+# (`include /etc/nginx/snippets/<name>.conf;`) so the pre-placement `nginx -t`
+# resolves them from its temp dir exactly as nginx does at runtime. The dir is
+# shared with package-shipped snippets, so only the files below are role-managed
+# and removed on teardown (never the whole directory).
+nginx_snippets_dir: /etc/nginx/snippets
+nginx_builtin_snippet_files:
+  - static-cache.conf
+  - security-headers.conf
+
+# Vendor "default site" files shipped by the packages, removed when
+# nginx_remove_default_vhost is true. conf.d/default.conf is the RHEL/nginx.org
+# default; sites-enabled/default is the Debian one.
+nginx_default_vhost_files:
+  - /etc/nginx/conf.d/default.conf
+  - /etc/nginx/sites-enabled/default
+
+# Official nginx.org repository (opt-in via nginx_use_official_repo).
+nginx_apt_keyring_dir: /etc/apt/keyrings
+nginx_signing_key_url: https://nginx.org/keys/nginx_signing.key
+
+# Allowed enum values, validated in assert.yml.
+nginx_valid_states:
+  - present
+  - absent
+nginx_valid_repo_channels:
+  - stable
+  - mainline

@@ -1,0 +1,42 @@
+---
+- name: Converge
+  hosts: nginx_hosts
+  become: true
+  vars:
+    # Remove the packaged default site so our :8080 vhost is unambiguous, and
+    # exercise a tunable + a raw extra-http line to prove the template renders
+    # and validates.
+    nginx_remove_default_vhost: true
+    nginx_server_tokens: "off"
+    # A raw http-level directive the built-in template does not already emit,
+    # to prove nginx_extra_http_options is injected and validates.
+    nginx_extra_http_options: |
+      server_names_hash_bucket_size 128;
+    # A user-defined snippet, on top of the two built-in ones.
+    nginx_snippets:
+      deny-dotfiles:
+        content: |
+          location ~ /\.(?!well-known) {
+              deny all;
+          }
+    nginx_vhosts:
+      molecule:
+        content: |
+          server {
+              listen 8080 default_server;
+              server_name _;
+              root /usr/share/nginx/html;
+
+              include /etc/nginx/snippets/security-headers.conf;
+              include /etc/nginx/snippets/static-cache.conf;
+              include /etc/nginx/snippets/deny-dotfiles.conf;
+
+              location / {
+                  default_type text/plain;
+                  return 200 "hello from molecule\n";
+              }
+          }
+  tasks:
+    - name: Run the nginx role
+      ansible.builtin.include_role:
+        name: nginx

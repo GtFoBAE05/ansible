@@ -1,0 +1,12 @@
+---
+# Flush any config changes queued as the Reload nginx handler before asserting
+# the steady-state enabled/started status below, so the two do not fight over
+# the service on the same run.
+- name: Apply pending nginx configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Manage the nginx service
+  ansible.builtin.systemd_service:
+    name: "{{ nginx_service_name }}"
+    enabled: "{{ nginx_service_enabled }}"
+    state: "{{ nginx_service_state }}"

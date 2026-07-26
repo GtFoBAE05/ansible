@@ -1,0 +1,188 @@
+---
+- name: Ensure the nginx configuration directory exists
+  ansible.builtin.file:
+    path: "{{ nginx_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the nginx vhost directory exists
+  ansible.builtin.file:
+    path: "{{ nginx_vhost_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: nginx_manage_vhost_dir
+
+# --- Reusable snippets ------------------------------------------------------
+# Deployed before vhosts so a vhost that `include`s a snippet passes the
+# `nginx -t` gate below. A snippet is only parsed by nginx once included, so an
+# unused one is inert.
+
+- name: Ensure the nginx snippets directory exists
+  ansible.builtin.file:
+    path: "{{ nginx_snippets_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: nginx_manage_snippets
+
+- name: Deploy the static-cache snippet
+  ansible.builtin.template:
+    src: snippets/static-cache.conf.j2
+    dest: "{{ nginx_snippets_dir }}/static-cache.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - nginx_manage_snippets
+    - nginx_static_cache_snippet
+  notify: Reload nginx
+
+- name: Deploy the security-headers snippet
+  ansible.builtin.template:
+    src: snippets/security-headers.conf.j2
+    dest: "{{ nginx_snippets_dir }}/security-headers.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - nginx_manage_snippets
+    - nginx_security_headers_snippet
+  notify: Reload nginx
+
+- name: Remove disabled built-in snippets
+  ansible.builtin.file:
+    path: "{{ nginx_snippets_dir }}/{{ item.name }}"
+    state: absent
+  loop:
+    - name: static-cache.conf
+      enabled: "{{ nginx_static_cache_snippet }}"
+    - name: security-headers.conf
+      enabled: "{{ nginx_security_headers_snippet }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - nginx_manage_snippets
+    - not item.enabled
+  notify: Reload nginx
+
+- name: Deploy user-defined snippets
+  ansible.builtin.copy:
+    content: "{{ item.value.content }}"
+    dest: "{{ nginx_snippets_dir }}/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ nginx_snippets | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: nginx_manage_snippets
+  notify: Reload nginx
+
+# --- Vendor default site ----------------------------------------------------
+
+- name: Remove the vendor default site
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ nginx_default_vhost_files }}"
+  when: nginx_remove_default_vhost
+  notify: Reload nginx
+
+# --- Virtual hosts ----------------------------------------------------------
+
+- name: Deploy nginx virtual hosts
+  ansible.builtin.copy:
+    content: "{{ item.value.content }}"
+    dest: "{{ nginx_vhost_dir }}/{{ item.key }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ nginx_vhosts | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  notify: Reload nginx
+
+- name: Find existing nginx virtual hosts
+  ansible.builtin.find:
+    paths: "{{ nginx_vhost_dir }}"
+    patterns: "*.conf"
+  register: _nginx_existing_vhosts
+  when: nginx_prune_vhosts
+
+- name: Prune virtual hosts no longer declared
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _nginx_existing_vhosts.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - nginx_prune_vhosts
+    - (item.path | basename | splitext | first) not in nginx_vhosts
+  notify: Reload nginx
+
+# --- Main nginx.conf --------------------------------------------------------
+# Each deploy runs `nginx -t -c %s` against the staged file BEFORE it is moved
+# into place, so a broken main config never overwrites the live one. The staged
+# file is validated from a temp dir, and nginx resolves RELATIVE includes
+# against the config file's own directory -- so vhosts must include snippets by
+# ABSOLUTE path (include /etc/nginx/snippets/x.conf;), which the role documents.
+# nginx.conf's own includes (mime.types, conf.d/*.conf) are already absolute.
+
+- name: Deploy nginx.conf from a user template
+  ansible.builtin.template:
+    src: "{{ nginx_config_template }}"
+    dest: "{{ nginx_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ nginx_config_backup }}"
+    validate: nginx -t -c %s
+  when:
+    - nginx_manage_config
+    - nginx_config_template | length > 0
+  notify: Reload nginx
+
+- name: Deploy nginx.conf from raw content
+  ansible.builtin.copy:
+    content: "{{ nginx_config }}"
+    dest: "{{ nginx_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ nginx_config_backup }}"
+    validate: nginx -t -c %s
+  when:
+    - nginx_manage_config
+    - nginx_config_template | length == 0
+    - nginx_config | length > 0
+  notify: Reload nginx
+
+- name: Deploy the default nginx.conf
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ nginx_config_backup }}"
+    validate: nginx -t -c %s
+  when:
+    - nginx_manage_config
+    - nginx_config_template | length == 0
+    - nginx_config | length == 0
+  notify: Reload nginx
+
+# A vhost server block is not a complete config, so it cannot be validated
+# standalone at write time (unlike nginx.conf above). This full-config test
+# guards the reload: if a vhost is broken, the play fails here and the queued
+# Reload nginx handler never fires, so the running server keeps its good config.
+- name: Validate the full nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  when: not ansible_check_mode

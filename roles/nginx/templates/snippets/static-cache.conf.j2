@@ -1,0 +1,9 @@
+{{ ansible_managed | comment }}
+# Aggressive caching for static assets. Include inside a server block that has
+# `root` set:
+#     include /etc/nginx/snippets/static-cache.conf;
+location ~* \.({{ nginx_static_cache_extensions }})$ {
+    expires {{ nginx_static_cache_expires }};
+    add_header Cache-Control "{{ nginx_static_cache_control }}";
+    access_log off;
+}

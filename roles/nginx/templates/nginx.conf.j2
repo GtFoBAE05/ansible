@@ -1,0 +1,72 @@
+{{ ansible_managed | comment }}
+# Default nginx.conf rendered by the nginx Ansible role. To take full control,
+# set nginx_config_template or nginx_config; to add sites, use nginx_vhosts
+# (written to {{ nginx_vhost_dir }} and imported below).
+
+user {{ nginx_user | default('', true) or nginx_run_user }};
+worker_processes {{ nginx_worker_processes }};
+worker_rlimit_nofile {{ nginx_worker_rlimit_nofile }};
+error_log /var/log/nginx/error.log {{ nginx_error_log_level }};
+pid /run/nginx.pid;
+{% for line in nginx_extra_conf_options.splitlines() if line | trim | length > 0 %}
+{{ line | trim }}
+{% endfor %}
+
+events {
+    worker_connections {{ nginx_worker_connections }};
+    multi_accept       on;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log  /var/log/nginx/access.log  main;
+
+    # Performance
+    sendfile             on;
+    tcp_nopush           on;
+    tcp_nodelay          on;
+    keepalive_timeout    {{ nginx_keepalive_timeout }};
+    keepalive_requests   {{ nginx_keepalive_requests }};
+    types_hash_max_size  2048;
+{% if nginx_charset | length > 0 %}
+    charset              {{ nginx_charset }};
+{% endif %}
+{% if nginx_open_file_cache | length > 0 %}
+
+    # Static-file descriptor cache
+    open_file_cache          {{ nginx_open_file_cache }};
+    open_file_cache_valid    {{ nginx_open_file_cache_valid }};
+    open_file_cache_min_uses {{ nginx_open_file_cache_min_uses }};
+    open_file_cache_errors   {{ nginx_open_file_cache_errors }};
+{% endif %}
+
+    # Client timeouts (slowloris hardening)
+    client_body_timeout        {{ nginx_client_body_timeout }};
+    client_header_timeout      {{ nginx_client_header_timeout }};
+    send_timeout               {{ nginx_send_timeout }};
+    reset_timedout_connection  {{ nginx_reset_timedout_connection }};
+
+    # Security / limits (http-level defaults inherited by every server block)
+    server_tokens        {{ nginx_server_tokens }};
+    client_max_body_size {{ nginx_client_max_body_size }};
+{% if nginx_gzip %}
+
+    # Compression
+    gzip            on;
+    gzip_vary       on;
+    gzip_comp_level 5;
+    gzip_min_length 256;
+    gzip_proxied    any;
+    gzip_types      {{ nginx_gzip_types | join(' ') }};
+{% endif %}
+{% for line in nginx_extra_http_options.splitlines() if line | trim | length > 0 %}
+    {{ line | trim }}
+{% endfor %}
+
+    include {{ nginx_vhost_dir }}/*.conf;
+}

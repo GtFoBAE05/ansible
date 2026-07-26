@@ -1,0 +1,12 @@
+---
+# Graceful config reload (systemd ExecReload sends nginx a HUP / runs
+# `nginx -s reload`). The configuration was already checked by the deploying
+# task's validate: parameter and the full `nginx -t` gate in configure.yml, so
+# a broken config never reaches a running server.
+- name: Reload nginx
+  ansible.builtin.systemd_service:
+    name: "{{ nginx_service_name }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - nginx_service_state != 'stopped'

@@ -1,0 +1,9 @@
+---
+- name: Configure the official nginx yum repository
+  ansible.builtin.include_tasks: repo-RedHat.yml
+  when: nginx_use_official_repo
+
+- name: Install nginx
+  ansible.builtin.package:
+    name: "{{ nginx_package_name }}{{ '-' + nginx_version if nginx_version | length > 0 else '' }}"
+    state: "{{ 'present' if nginx_version | length > 0 else nginx_package_state }}"

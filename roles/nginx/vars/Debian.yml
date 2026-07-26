@@ -1,0 +1,9 @@
+---
+nginx_package_name: nginx
+
+# Default value for the nginx.conf `user` directive on the Debian family.
+nginx_run_user: www-data
+
+# The apt_repository + get_url approach fetches over HTTPS; ca-certificates
+# ships on all supported images, so no extra prerequisites are required.
+nginx_repo_prereq_packages: []

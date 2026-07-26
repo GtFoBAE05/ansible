@@ -1,0 +1,22 @@
+---
+# Lightweight manual/CI smoke check. This is NOT a substitute for the Molecule
+# scenario (multi-OS + idempotence). Run against a throwaway host:
+#   ansible-playbook -i tests/inventory tests/test.yml
+- name: Nginx role smoke test
+  hosts: nginx_hosts
+  become: true
+  vars:
+    nginx_remove_default_vhost: true
+    nginx_vhosts:
+      smoke:
+        content: |
+          server {
+              listen 8080;
+              server_name _;
+              location / {
+                  default_type text/plain;
+                  return 200 "ok\n";
+              }
+          }
+  roles:
+    - role: nginx

@@ -1,0 +1,33 @@
+---
+galaxy_info:
+  role_name: nginx
+  namespace: infra
+  author: Infrastructure Team
+  description: >-
+    Installs the nginx web server (distribution package by default, optional
+    nginx.org official repo), manages nginx.conf and conf.d virtual hosts with
+    validate-before-reload, and controls the systemd service.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+    - name: EL
+      versions:
+        - all
+    - name: Fedora
+      versions:
+        - all
+  galaxy_tags:
+    - nginx
+    - web
+    - webserver
+    - http
+    - reverseproxy
+
+dependencies: []

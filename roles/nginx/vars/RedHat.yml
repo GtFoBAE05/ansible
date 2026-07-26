@@ -1,0 +1,5 @@
+---
+nginx_package_name: nginx
+
+# Default value for the nginx.conf `user` directive on the RHEL family.
+nginx_run_user: nginx

@@ -1,0 +1,83 @@
+---
+- name: Verify
+  hosts: nginx_hosts
+  become: true
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the nginx service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['nginx.service'].state == 'running'
+          - ansible_facts.services['nginx.service'].status == 'enabled'
+        fail_msg: nginx.service is not running/enabled.
+
+    - name: Check the full nginx configuration is valid
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Stat the rendered vhost
+      ansible.builtin.stat:
+        path: /etc/nginx/conf.d/molecule.conf
+      register: _vhost
+
+    - name: Assert the vhost was written
+      ansible.builtin.assert:
+        that:
+          - _vhost.stat.exists
+        fail_msg: /etc/nginx/conf.d/molecule.conf is missing.
+
+    - name: Request the test site served by the vhost
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/
+        return_content: true
+      register: _resp
+      retries: 5
+      delay: 2
+      until: _resp.status == 200
+
+    - name: Assert the test site responds as configured
+      ansible.builtin.assert:
+        that:
+          - _resp.status == 200
+          - "'hello from molecule' in _resp.content"
+        fail_msg: "nginx did not serve the expected response on :8080."
+
+    - name: Assert the version is hidden (server_tokens off)
+      ansible.builtin.assert:
+        that:
+          - _resp.server is defined
+          - _resp.server == 'nginx'
+        fail_msg: >-
+          Expected the Server header to be a bare 'nginx' (server_tokens off),
+          got '{{ _resp.server | default('') }}'.
+
+    - name: Stat the deployed snippets
+      ansible.builtin.stat:
+        path: "/etc/nginx/snippets/{{ item }}"
+      register: _snippets
+      loop:
+        - security-headers.conf
+        - static-cache.conf
+        - deny-dotfiles.conf
+
+    - name: Assert every role-managed snippet was written
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "/etc/nginx/snippets/{{ item.item }} is missing."
+        quiet: true
+      loop: "{{ _snippets.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Assert the security-headers snippet is applied to the response
+      ansible.builtin.assert:
+        that:
+          - _resp.x_content_type_options is defined
+          - _resp.x_content_type_options == 'nosniff'
+        fail_msg: >-
+          Expected the X-Content-Type-Options header from the included
+          security-headers snippet, got
+          '{{ _resp.x_content_type_options | default('') }}'.

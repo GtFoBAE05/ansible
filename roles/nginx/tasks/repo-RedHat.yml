@@ -1,0 +1,14 @@
+---
+- name: Configure the official nginx yum repository
+  ansible.builtin.yum_repository:
+    name: nginx
+    description: "nginx official repository ({{ nginx_repo_channel }})"
+    # RHEL-family clones (Rocky/Alma) report their major version in
+    # ansible_distribution_major_version, which maps to nginx.org's rhel/<N>.
+    baseurl: "https://nginx.org/packages/{{ 'mainline/' if nginx_repo_channel == 'mainline' else '' }}rhel/{{ ansible_distribution_major_version }}/$basearch/"
+    gpgcheck: true
+    gpgkey: "{{ nginx_signing_key_url }}"
+    enabled: true
+    # On EL8 nginx also exists as an AppStream module; module_hotfixes lets dnf
+    # install the nginx.org package instead of being filtered by the module.
+    module_hotfixes: true

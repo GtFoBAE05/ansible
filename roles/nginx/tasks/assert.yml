@@ -1,0 +1,113 @@
+---
+- name: Assert the target system runs systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_service_mgr == 'systemd'
+    fail_msg: >-
+      The nginx role requires systemd (found init system
+      '{{ ansible_service_mgr }}'). nginx is managed as a systemd service.
+    success_msg: systemd detected
+
+- name: Assert nginx_state is valid
+  ansible.builtin.assert:
+    that:
+      - nginx_state in nginx_valid_states
+    fail_msg: >-
+      'nginx_state' must be one of {{ nginx_valid_states }}.
+      Got: '{{ nginx_state }}'.
+
+- name: Assert nginx_repo_channel is valid
+  ansible.builtin.assert:
+    that:
+      - nginx_repo_channel in nginx_valid_repo_channels
+    fail_msg: >-
+      'nginx_repo_channel' must be one of {{ nginx_valid_repo_channels }}.
+      Got: '{{ nginx_repo_channel }}'.
+
+- name: Assert nginx_version is a string
+  ansible.builtin.assert:
+    that:
+      - nginx_version is string
+    fail_msg: >-
+      'nginx_version' must be a string package version (e.g. "1.26.2") or empty.
+      Got: '{{ nginx_version }}' ({{ nginx_version | type_debug }}).
+
+- name: Assert the official repo is available for this OS
+  ansible.builtin.assert:
+    that:
+      - ansible_os_family in ['Debian', 'RedHat']
+      - ansible_distribution != 'Fedora'
+    fail_msg: >-
+      'nginx_use_official_repo' is true, but nginx.org publishes packages only
+      for the Debian family and the RHEL family (not '{{ ansible_distribution }}').
+      Set nginx_use_official_repo=false to use the distribution's own nginx
+      package, or preconfigure a repository yourself.
+  when: nginx_use_official_repo
+
+- name: Assert worker_rlimit_nofile can satisfy worker_connections
+  ansible.builtin.assert:
+    that:
+      - nginx_worker_rlimit_nofile | int >= nginx_worker_connections | int
+    fail_msg: >-
+      'nginx_worker_rlimit_nofile' ({{ nginx_worker_rlimit_nofile }}) must be
+      >= 'nginx_worker_connections' ({{ nginx_worker_connections }}); otherwise
+      workers cannot open enough file descriptors to reach their connection cap.
+
+- name: Assert the nginx.conf source is not doubly specified
+  ansible.builtin.assert:
+    that:
+      - not (nginx_config_template | length > 0 and nginx_config | length > 0)
+    fail_msg: >-
+      Set at most one of 'nginx_config_template' and 'nginx_config'. Both were
+      provided, which is ambiguous. Use a template for dynamic config or a raw
+      string for static config, not both.
+
+- name: Assert nginx_vhosts is a mapping
+  ansible.builtin.assert:
+    that:
+      - nginx_vhosts is mapping
+    fail_msg: >-
+      'nginx_vhosts' must be a mapping of "<name>: {content: ...}".
+      Got a {{ nginx_vhosts | type_debug }}.
+
+- name: Assert every vhost has content
+  ansible.builtin.assert:
+    that:
+      - item.value.content is defined
+      - item.value.content | string | length > 0
+    fail_msg: >-
+      Vhost '{{ item.key }}' must define a non-empty 'content'. It becomes
+      {{ nginx_vhost_dir }}/{{ item.key }}.conf.
+    quiet: true
+  loop: "{{ nginx_vhosts | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Assert nginx_security_headers is a mapping
+  ansible.builtin.assert:
+    that:
+      - nginx_security_headers is mapping
+    fail_msg: >-
+      'nginx_security_headers' must be a mapping of "Header-Name: value".
+      Got a {{ nginx_security_headers | type_debug }}.
+
+- name: Assert nginx_snippets is a mapping
+  ansible.builtin.assert:
+    that:
+      - nginx_snippets is mapping
+    fail_msg: >-
+      'nginx_snippets' must be a mapping of "<name>: {content: ...}".
+      Got a {{ nginx_snippets | type_debug }}.
+
+- name: Assert every user snippet has content
+  ansible.builtin.assert:
+    that:
+      - item.value.content is defined
+      - item.value.content | string | length > 0
+    fail_msg: >-
+      Snippet '{{ item.key }}' must define a non-empty 'content'. It becomes
+      {{ nginx_snippets_dir }}/{{ item.key }}.conf.
+    quiet: true
+  loop: "{{ nginx_snippets | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
