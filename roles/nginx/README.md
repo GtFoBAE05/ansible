@@ -98,6 +98,31 @@ _(ignored when `nginx_config_template` or `nginx_config` is set)_
 | `nginx_prune_vhosts` | `false` | Delete `conf.d/*.conf` files not in `nginx_vhosts`. |
 | `nginx_remove_default_vhost` | `false` | Remove the vendor default site (`conf.d/default.conf`, Debian `sites-enabled/default`). |
 
+### Built-in default site
+
+The role's `nginx.conf` includes only `conf.d/*.conf`, not Debian's
+`sites-enabled/`, so without a listener nothing answers `:80` — nginx runs but
+every request is refused. To avoid that surprise the role ships a catch-all
+default site **on by default** that points at the package's own web root, so a
+fresh apply serves the **distro's stock welcome page** on `:80`, just like a
+manual install. Turn it **off** for reverse-proxy or strictly vhost-driven
+hosts, where a `default_server` would shadow the sites you actually define.
+
+When `nginx_default_site_root`/`_index` are left empty the role uses the
+OS-family default — `/var/www/html` + `index.nginx-debian.html` on Debian,
+`/usr/share/nginx/html` + `index.html` on RHEL — which is exactly where each
+package ships its welcome page. Override them to serve your own content.
+
+| Variable | Default | Description |
+|---|---|---|
+| `nginx_default_site` | `true` | Render a catch-all `server { listen 80 default_server; }` into the built-in `nginx.conf`. Set `false` to disable. Ignored when `nginx_config_template`/`nginx_config` is set. |
+| `nginx_default_site_root` | `""` (OS default) | Document root served. Empty → the package web root (`/var/www/html` Debian, `/usr/share/nginx/html` RHEL). **The role does not create it.** |
+| `nginx_default_site_index` | `""` (OS default) | `index` filenames. Empty → the OS default, including the distro's stock welcome file. |
+| `nginx_default_site_ipv6` | `true` | Also `listen [::]:80`. Set `false` where IPv6 is disabled, else nginx fails to bind at start. |
+
+> Do not combine `nginx_default_site` with a vhost that also declares
+> `listen 80 default_server` — two default servers on one port fail `nginx -t`.
+
 ### Reusable snippets
 
 The role ships best-practice fragments to `/etc/nginx/snippets`. A snippet is
@@ -235,6 +260,9 @@ curl -I http://localhost/
 | Task fails at `validate:` deploying `nginx.conf` | Syntax error in the main config | Fix `nginx_config*`/tunables; the bad file is never installed. |
 | Task fails at **Validate the full nginx configuration** | A vhost in `nginx_vhosts` is invalid | Fix the offending vhost. The reload is skipped, so the running server keeps its previous config; the bad file stays on disk until the next good run. |
 | `System has not been booted with systemd` | Non-systemd host (or a container without a real init) | Use a systemd host; in Molecule keep `override_command: false`. |
+| nginx runs but `curl http://host/` gives `Connection refused` and `ss -tlnp` shows nothing on `:80` | No server block listens on `:80` — `nginx_default_site` was disabled and no `nginx_vhosts` define a `listen 80;` | Re-enable `nginx_default_site`, or add a vhost with `listen 80;`. |
+| `curl http://host/` connects but returns `403`/`404` | Default site points at a web root with no matching `index` file (e.g. you overrode `nginx_default_site_root` to an empty dir) | Put an index file in the root, or add its name to `nginx_default_site_index`. The role does not create the web root. |
+| `nginx: [emerg] bind() to [::]:80 failed` at start | Default site tries the IPv6 wildcard on an IPv6-disabled host | Set `nginx_default_site_ipv6: false`. |
 | Port 80 already answered by a default page | Vendor default site still enabled | Set `nginx_remove_default_vhost: true`. |
 | Official repo enable fails | No egress to `nginx.org` | Mirror the repo internally, or leave `nginx_use_official_repo: false` to use the distro package. |
 | `nginx_use_official_repo` rejected on Fedora | nginx.org publishes no Fedora packages | Use the Fedora package (`nginx_use_official_repo: false`). |

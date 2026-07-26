@@ -4,6 +4,25 @@ All notable changes to this role are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this role adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-26
+
+### Added
+
+- Built-in default site: `nginx_default_site` (default `true`) renders a
+  catch-all `server { listen 80 default_server; }` into the built-in
+  `nginx.conf`. It replaces the vendor default site the role's `nginx.conf`
+  drops, so a fresh apply serves the **distro's stock welcome page** on `:80`
+  just like a manual install — no vhost required. When
+  `nginx_default_site_root` / `nginx_default_site_index` are left empty they
+  resolve to the OS-family default (`/var/www/html` +
+  `index.nginx-debian.html` on Debian, `/usr/share/nginx/html` + `index.html`
+  on RHEL), matching where each package ships its welcome page; override them to
+  serve your own content. `nginx_default_site_ipv6` (default `true`) toggles the
+  `[::]:80` listener for IPv6-disabled hosts. Set `nginx_default_site: false`
+  for reverse-proxy or strictly vhost-driven hosts. The document root is not
+  created by the role. Validated in `assert`, documented, and covered
+  end-to-end in the Molecule scenario.
+
 ## [1.0.0] - 2026-07-26
 
 ### Added

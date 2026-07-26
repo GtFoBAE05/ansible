@@ -181,6 +181,35 @@ nginx_prune_vhosts: false
 # sites-enabled/default) so it does not occupy :80 alongside your vhosts.
 nginx_remove_default_vhost: false
 
+# --- Built-in default site --------------------------------------------------
+# When true, the built-in nginx.conf renders a catch-all server block that
+# listens on :80 and serves a directory -- the role's own equivalent of the
+# distro's stock default site, so `curl http://host/` works right after an
+# apply without you defining a full vhost. It replaces the vendor default site
+# the role's nginx.conf drops (the Debian one lives in sites-enabled/, which
+# this role deliberately does not include).
+#
+# ON by default so a fresh apply serves a page on :80 without extra config. Set
+# false for reverse-proxy or strictly vhost-driven hosts, where a catch-all
+# `listen 80 default_server` would shadow the sites you actually define.
+# Ignored entirely when you take over the main config via nginx_config_template
+# or nginx_config. Do NOT combine it with a vhost that also declares
+# `listen 80 default_server` -- two default servers on one port fail `nginx -t`.
+nginx_default_site: true
+# Document root served by the default site. Empty -> the OS-family default web
+# root (Debian: /var/www/html, RHEL: /usr/share/nginx/html), which is where the
+# package's stock welcome page already lives -- so the default apply shows it.
+# The role does NOT create or populate this directory; override only to point at
+# your own web root.
+nginx_default_site_root: ""
+# `index` filenames tried, space-separated. Empty -> the OS-family default,
+# which includes the distro's stock welcome file (Debian ships
+# index.nginx-debian.html) so a fresh apply shows the welcome page.
+nginx_default_site_index: ""
+# Also listen on the IPv6 wildcard. Matches the distro default; set false on
+# hosts where IPv6 is disabled, otherwise nginx fails to bind [::]:80 at start.
+nginx_default_site_ipv6: true
+
 # --- Teardown ---------------------------------------------------------------
 
 # On nginx_state=absent, also uninstall the package. Off by default so an

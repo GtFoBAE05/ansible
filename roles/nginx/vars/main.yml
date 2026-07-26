@@ -20,6 +20,21 @@ nginx_builtin_snippet_files:
   - static-cache.conf
   - security-headers.conf
 
+# Built-in default site: where each distro's nginx package ships its stock
+# welcome page. Used when the user leaves nginx_default_site_root /
+# nginx_default_site_index empty, so a fresh apply serves that welcome page.
+# Keyed by ansible_os_family; nginx_default_site_fallback covers anything else.
+nginx_default_site_defaults:
+  Debian:
+    root: /var/www/html
+    index: index.html index.htm index.nginx-debian.html
+  RedHat:
+    root: /usr/share/nginx/html
+    index: index.html index.htm
+nginx_default_site_fallback:
+  root: /usr/share/nginx/html
+  index: index.html index.htm
+
 # Vendor "default site" files shipped by the packages, removed when
 # nginx_remove_default_vhost is true. conf.d/default.conf is the RHEL/nginx.org
 # default; sites-enabled/default is the Debian one.

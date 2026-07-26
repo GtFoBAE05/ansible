@@ -53,6 +53,29 @@
           Expected the Server header to be a bare 'nginx' (server_tokens off),
           got '{{ _resp.server | default('') }}'.
 
+    - name: Request the built-in default site on :80
+      ansible.builtin.uri:
+        url: http://127.0.0.1:80/
+        return_content: true
+      register: _default_resp
+      retries: 5
+      delay: 2
+      until: _default_resp.status == 200
+
+    - name: Assert the default site serves its document root
+      ansible.builtin.assert:
+        that:
+          - _default_resp.status == 200
+          - "'hello from the default site' in _default_resp.content"
+        fail_msg: >-
+          Expected the built-in default site to serve /var/www/molecule on :80,
+          got status {{ _default_resp.status }}.
+
+    - name: Assert an unknown path under the default site 404s (try_files)
+      ansible.builtin.uri:
+        url: http://127.0.0.1:80/does-not-exist
+        status_code: 404
+
     - name: Stat the deployed snippets
       ansible.builtin.stat:
         path: "/etc/nginx/snippets/{{ item }}"

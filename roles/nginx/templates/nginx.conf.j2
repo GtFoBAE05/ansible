@@ -67,6 +67,27 @@ http {
 {% for line in nginx_extra_http_options.splitlines() if line | trim | length > 0 %}
     {{ line | trim }}
 {% endfor %}
+{% if nginx_default_site %}
+{% set _site_os = nginx_default_site_defaults[ansible_os_family] | default(nginx_default_site_fallback) %}
+
+    # Built-in default site (nginx_default_site). Catch-all on :80 serving
+    # {{ nginx_default_site_root or _site_os.root }}, the role's equivalent of
+    # the distro's stock default site. Deployed vhosts in conf.d take over any
+    # name they match; this answers everything else.
+    server {
+        listen      80 default_server;
+{% if nginx_default_site_ipv6 %}
+        listen      [::]:80 default_server;
+{% endif %}
+        server_name _;
+        root        {{ nginx_default_site_root or _site_os.root }};
+        index       {{ nginx_default_site_index or _site_os.index }};
+
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+{% endif %}
 
     include {{ nginx_vhost_dir }}/*.conf;
 }

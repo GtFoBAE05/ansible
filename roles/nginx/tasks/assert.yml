@@ -83,6 +83,18 @@
   loop_control:
     label: "{{ item.key }}"
 
+- name: Assert the built-in default-site paths are strings
+  ansible.builtin.assert:
+    that:
+      - nginx_default_site_root is string
+      - nginx_default_site_index is string
+    fail_msg: >-
+      'nginx_default_site_root' and 'nginx_default_site_index' must be strings.
+      Leave them empty to use the OS-family default web root and index (which
+      serve the distro's stock welcome page), or set your own. Got root
+      '{{ nginx_default_site_root }}', index '{{ nginx_default_site_index }}'.
+  when: nginx_default_site
+
 - name: Assert nginx_security_headers is a mapping
   ansible.builtin.assert:
     that:

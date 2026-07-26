@@ -8,6 +8,11 @@
     # and validates.
     nginx_remove_default_vhost: true
     nginx_server_tokens: "off"
+    # Exercise the built-in default site on :80 (the conf.d vhost below owns
+    # :8080). IPv6 off because the test container has no IPv6 wildcard to bind.
+    nginx_default_site: true
+    nginx_default_site_root: /var/www/molecule
+    nginx_default_site_ipv6: false
     # A raw http-level directive the built-in template does not already emit,
     # to prove nginx_extra_http_options is injected and validates.
     nginx_extra_http_options: |
@@ -37,6 +42,19 @@
               }
           }
   tasks:
+    # The role never creates web roots, so seed the default site's root here.
+    - name: Create the default-site web root
+      ansible.builtin.file:
+        path: /var/www/molecule
+        state: directory
+        mode: "0755"
+
+    - name: Write the default-site index
+      ansible.builtin.copy:
+        content: "hello from the default site\n"
+        dest: /var/www/molecule/index.html
+        mode: "0644"
+
     - name: Run the nginx role
       ansible.builtin.include_role:
         name: nginx
