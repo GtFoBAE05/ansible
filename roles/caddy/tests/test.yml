@@ -1,0 +1,16 @@
+---
+# Lightweight manual/CI smoke check. This is NOT a substitute for the Molecule
+# scenario (multi-OS + idempotence). Run against a throwaway host:
+#   ansible-playbook -i tests/inventory tests/test.yml
+- name: Caddy role smoke test
+  hosts: caddy_hosts
+  become: true
+  vars:
+    caddy_config_snippets:
+      smoke:
+        content: |
+          :8080 {
+          	respond "ok"
+          }
+  roles:
+    - role: caddy

@@ -1,0 +1,133 @@
+---
+- name: Ensure the Caddy configuration directory exists
+  ansible.builtin.file:
+    path: "{{ caddy_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the Caddy snippets directory exists
+  ansible.builtin.file:
+    path: "{{ caddy_snippets_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: caddy_manage_snippets_dir
+
+# --- Environment file + systemd drop-in (optional) --------------------------
+
+- name: Deploy the Caddy environment file
+  ansible.builtin.template:
+    src: caddy.env.j2
+    dest: "{{ caddy_env_file }}"
+    owner: root
+    group: "{{ caddy_group }}"
+    mode: "0640"
+  when: caddy_environment | length > 0
+  notify: Restart caddy
+
+- name: Ensure the Caddy systemd drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ caddy_systemd_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: caddy_environment | length > 0
+
+- name: Deploy the Caddy systemd environment drop-in
+  ansible.builtin.template:
+    src: override.conf.j2
+    dest: "{{ caddy_systemd_dropin_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: caddy_environment | length > 0
+  notify:
+    - Reload systemd daemon
+    - Restart caddy
+
+# --- Site snippets ----------------------------------------------------------
+
+- name: Deploy Caddy configuration snippets
+  ansible.builtin.copy:
+    content: "{{ item.value.content }}"
+    dest: "{{ caddy_snippets_dir }}/{{ item.key }}.caddy"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ caddy_config_snippets | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: caddy_manage_config
+  notify: Reload caddy
+
+- name: Find existing Caddy snippets
+  ansible.builtin.find:
+    paths: "{{ caddy_snippets_dir }}"
+    patterns: "*.caddy"
+  register: _caddy_existing_snippets
+  when:
+    - caddy_manage_config
+    - caddy_prune_snippets
+
+- name: Prune snippets no longer declared
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _caddy_existing_snippets.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - caddy_manage_config
+    - caddy_prune_snippets
+    - (item.path | basename | splitext | first) not in caddy_config_snippets
+  notify: Reload caddy
+
+# --- Main Caddyfile ---------------------------------------------------------
+
+- name: Deploy the Caddyfile from a user template
+  ansible.builtin.template:
+    src: "{{ caddy_config_template }}"
+    dest: "{{ caddy_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ caddy_config_backup }}"
+    validate: "caddy validate --adapter caddyfile --config %s"
+  when:
+    - caddy_manage_config
+    - caddy_config_template | length > 0
+  notify: Reload caddy
+
+- name: Deploy the Caddyfile from raw content
+  ansible.builtin.copy:
+    content: "{{ caddy_config }}"
+    dest: "{{ caddy_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ caddy_config_backup }}"
+    validate: "caddy validate --adapter caddyfile --config %s"
+  when:
+    - caddy_manage_config
+    - caddy_config_template | length == 0
+    - caddy_config | length > 0
+  notify: Reload caddy
+
+- name: Deploy the default Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ caddy_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: "{{ caddy_config_backup }}"
+    validate: "caddy validate --adapter caddyfile --config %s"
+  when:
+    - caddy_manage_config
+    - caddy_config_template | length == 0
+    - caddy_config | length == 0
+  notify: Reload caddy

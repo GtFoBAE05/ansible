@@ -1,0 +1,33 @@
+---
+galaxy_info:
+  role_name: caddy
+  namespace: infra
+  author: Infrastructure Team
+  description: >-
+    Installs the Caddy web server from its official package repository
+    (Cloudsmith APT on Debian family, COPR on RHEL family), manages the
+    Caddyfile with validate-before-reload, and controls the systemd service.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+    - name: Debian
+      versions:
+        - bookworm
+    - name: EL
+      versions:
+        - all
+    - name: Fedora
+      versions:
+        - all
+  galaxy_tags:
+    - caddy
+    - web
+    - webserver
+    - https
+    - reverseproxy
+
+dependencies: []

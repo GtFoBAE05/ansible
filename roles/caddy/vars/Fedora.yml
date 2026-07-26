@@ -1,0 +1,9 @@
+---
+# Loaded in preference to RedHat.yml on Fedora (first_found checks the
+# distribution file first). Fedora uses its own COPR chroots, and newer Fedora
+# ships dnf5 whose copr plugin is in dnf5-plugins.
+caddy_package_name: caddy
+
+caddy_copr_plugin_package: dnf5-plugins
+
+caddy_copr_chroot: "fedora-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}"

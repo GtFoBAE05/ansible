@@ -1,0 +1,17 @@
+---
+# Fallback for distros without an OS-family install file. No official-repo
+# automation exists here; the package must already be reachable (either from a
+# distro that ships it or a repo you configured with caddy_use_official_repo
+# left at its default and handled out-of-band).
+- name: Warn that no repository automation exists for this distribution
+  ansible.builtin.debug:
+    msg: >-
+      No install-{{ ansible_os_family }}.yml exists for this distribution
+      ('{{ ansible_distribution }}'). Installing '{{ caddy_package_name }}'
+      directly; ensure a repository providing it is configured.
+  when: caddy_use_official_repo
+
+- name: Install Caddy
+  ansible.builtin.package:
+    name: "{{ caddy_package_name }}"
+    state: "{{ caddy_package_state }}"

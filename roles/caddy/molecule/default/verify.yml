@@ -1,0 +1,56 @@
+---
+- name: Verify
+  hosts: caddy_hosts
+  become: true
+  tasks:
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert the caddy service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['caddy.service'].state == 'running'
+          - ansible_facts.services['caddy.service'].status == 'enabled'
+        fail_msg: caddy.service is not running/enabled.
+
+    - name: Check the Caddyfile is valid
+      ansible.builtin.command: caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+      changed_when: false
+
+    - name: Stat the rendered snippet
+      ansible.builtin.stat:
+        path: /etc/caddy/conf.d/molecule.caddy
+      register: _snippet
+
+    - name: Assert the snippet was written
+      ansible.builtin.assert:
+        that:
+          - _snippet.stat.exists
+        fail_msg: /etc/caddy/conf.d/molecule.caddy is missing.
+
+    - name: Read the environment file
+      ansible.builtin.slurp:
+        src: /etc/caddy/caddy.env
+      register: _envfile
+
+    - name: Assert the environment file carries the variable
+      ansible.builtin.assert:
+        that:
+          - "'CADDY_MOLECULE_TOKEN=molecule-secret' in (_envfile.content | b64decode)"
+        fail_msg: caddy.env does not contain the expected variable.
+
+    - name: Request the test site served by the snippet
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/
+        return_content: true
+      register: _resp
+      retries: 5
+      delay: 2
+      until: _resp.status == 200
+
+    - name: Assert the test site responds as configured
+      ansible.builtin.assert:
+        that:
+          - _resp.status == 200
+          - "'hello from molecule' in _resp.content"
+        fail_msg: "Caddy did not serve the expected response on :8080."

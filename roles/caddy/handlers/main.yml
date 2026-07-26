@@ -1,0 +1,29 @@
+---
+# Handlers run in the order defined here, not notify order. Keep daemon-reload
+# before the service handlers so a changed drop-in is loaded before a restart.
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: not ansible_check_mode
+
+# Graceful config reload (the unit's ExecReload runs `caddy reload`). The
+# Caddyfile was already validated by the deploying task's validate: parameter,
+# so a broken config never reaches a running server.
+- name: Reload caddy
+  ansible.builtin.systemd_service:
+    name: "{{ caddy_service_name }}"
+    state: reloaded
+  when:
+    - not ansible_check_mode
+    - caddy_service_state != 'stopped'
+
+# Full restart, needed when the EnvironmentFile / drop-in changes (a reload
+# does not re-read systemd unit environment).
+- name: Restart caddy
+  ansible.builtin.systemd_service:
+    name: "{{ caddy_service_name }}"
+    state: restarted
+  when:
+    - not ansible_check_mode
+    - caddy_service_state != 'stopped'

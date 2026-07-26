@@ -1,0 +1,10 @@
+---
+caddy_package_name: caddy
+
+# Provides the `dnf copr` plugin used by community.general.copr.
+caddy_copr_plugin_package: dnf-plugins-core
+
+# @caddy/caddy builds for generic EPEL chroots (epel-8/9/10), not distro-named
+# ones. The copr module otherwise auto-detects e.g. "rocky-9.8-x86_64", which
+# does not exist in the project, so the chroot is set explicitly here.
+caddy_copr_chroot: "epel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}"

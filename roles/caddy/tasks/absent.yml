@@ -1,0 +1,40 @@
+---
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Stop and disable the Caddy service
+  ansible.builtin.systemd_service:
+    name: "{{ caddy_service_name }}"
+    state: stopped
+    enabled: false
+  when: (caddy_service_name ~ '.service') in ansible_facts.services
+
+- name: Remove managed Caddy configuration
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ caddy_config_file }}"
+    - "{{ caddy_snippets_dir }}"
+    - "{{ caddy_env_file }}"
+    - "{{ caddy_systemd_dropin_file }}"
+
+- name: Reload systemd after removing the drop-in
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Uninstall the Caddy package
+  ansible.builtin.package:
+    name: "{{ caddy_package_name }}"
+    state: absent
+  when: caddy_remove_package
+
+# NOTE: /var/lib/caddy (certificates, OCSP staples, autosave.json) is left in
+# place on purpose. Deleting it silently would be unrecoverable. Remove it
+# manually if you really want a clean slate:
+#   rm -rf {{ caddy_data_dir }}
+- name: Report preserved data directory
+  ansible.builtin.debug:
+    msg: >-
+      Caddy config removed. Data under {{ caddy_data_dir }} (certificates, OCSP
+      staples) is preserved. Delete it manually if you want a full teardown.

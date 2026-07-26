@@ -1,0 +1,19 @@
+---
+- name: Configure the official Caddy apt repository
+  ansible.builtin.include_tasks: repo-Debian.yml
+  when: caddy_use_official_repo
+
+- name: Install repository prerequisite packages
+  ansible.builtin.apt:
+    name: "{{ caddy_repo_prereq_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: caddy_repo_prereq_packages | length > 0
+
+- name: Install Caddy
+  ansible.builtin.apt:
+    name: "{{ caddy_package_name }}{{ '=' + caddy_version if caddy_version | length > 0 else '' }}"
+    state: "{{ 'present' if caddy_version | length > 0 else caddy_package_state }}"
+    update_cache: true
+    cache_valid_time: 3600

@@ -1,0 +1,32 @@
+---
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: "{{ caddy_apt_keyring_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the Caddy repository signing key
+  ansible.builtin.get_url:
+    # APT accepts an ASCII-armored key referenced via signed-by, so the
+    # upstream gpg.key is used as-is without a manual gpg --dearmor step.
+    url: "{{ caddy_cloudsmith_base_url }}/{{ caddy_repo_channel }}/gpg.key"
+    dest: "{{ caddy_apt_keyring_dir }}/caddy-{{ caddy_repo_channel }}.asc"
+    owner: root
+    group: root
+    mode: "0644"
+    force: false
+  register: _caddy_repo_key
+  retries: 3
+  delay: 5
+  until: _caddy_repo_key is succeeded
+
+- name: Configure the official Caddy apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ caddy_apt_keyring_dir }}/caddy-{{ caddy_repo_channel }}.asc]
+      {{ caddy_cloudsmith_base_url }}/{{ caddy_repo_channel }}/deb/debian any-version main
+    filename: "caddy-{{ caddy_repo_channel }}"
+    state: present
+    update_cache: true

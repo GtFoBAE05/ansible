@@ -1,0 +1,19 @@
+{{ ansible_managed | comment }}
+# Default Caddyfile rendered by the caddy Ansible role. To take full control,
+# set caddy_config_template or caddy_config; to add sites, use
+# caddy_config_snippets (imported from {{ caddy_snippets_dir }} below).
+{% if caddy_email | length > 0 or caddy_global_options | length > 0 %}
+
+{
+{% if caddy_email | length > 0 %}
+	email {{ caddy_email }}
+{% endif %}
+{% for line in caddy_global_options.splitlines() if line | trim | length > 0 %}
+	{{ line | trim }}
+{% endfor %}
+}
+{% endif %}
+{% if caddy_config_snippets | length > 0 %}
+
+import {{ caddy_snippets_dir }}/*.caddy
+{% endif %}

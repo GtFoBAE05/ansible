@@ -1,0 +1,90 @@
+---
+# ===========================================================================
+# caddy role — public API. Everything here is safe to override from inventory
+# or a playbook. Internal constants live in vars/main.yml (do not override).
+# ===========================================================================
+
+# Desired end state for Caddy on the host.
+#   present -> repo + package + config + service managed
+#   absent  -> service stopped/disabled and managed config removed. User data
+#              under /var/lib/caddy (certificates, OCSP staples) is preserved;
+#              see the README for the manual removal command.
+caddy_state: present
+
+# --- Installation -----------------------------------------------------------
+
+# Use Caddy's official package repository (Cloudsmith APT on Debian family,
+# COPR @caddy/caddy on RHEL family). This is the upstream-recommended method
+# and the only source that ships Caddy on the supported distros. Set to false
+# ONLY if you have already configured an internal mirror providing a package
+# named 'caddy' -- the role will then just install it.
+caddy_use_official_repo: true
+
+# APT release channel on the Debian family: "stable" or "testing" (betas/RCs).
+caddy_repo_channel: stable
+
+# COPR project on the RHEL family.
+caddy_copr_project: "@caddy/caddy"
+
+# Pin an exact package version, e.g. "2.8.4". Leave empty for the repo's latest.
+caddy_version: ""
+
+# Package state when caddy_version is empty (present|latest). When a version is
+# pinned, "present" is forced regardless of this value.
+caddy_package_state: present
+
+# --- Service ----------------------------------------------------------------
+
+caddy_service_enabled: true
+# started | stopped | reloaded. Handlers still reload on config change.
+caddy_service_state: started
+
+# --- Configuration ----------------------------------------------------------
+
+# Manage /etc/caddy/Caddyfile. Set false to leave the file entirely to the user
+# (the role then only installs the package and manages the service).
+caddy_manage_config: true
+
+# Back up the existing Caddyfile whenever the role changes it.
+caddy_config_backup: true
+
+# How the main Caddyfile is produced (choose at most one of the first two):
+#   caddy_config_template : path to YOUR Jinja2 template (highest priority)
+#   caddy_config          : raw Caddyfile content as a string
+#   (neither)             : the role renders a minimal default Caddyfile that
+#                           applies the global options below and imports every
+#                           snippet from conf.d (see caddy_config_snippets).
+caddy_config_template: ""
+caddy_config: ""
+
+# Used only by the built-in default Caddyfile.
+# ACME contact email placed in the global options block (recommended by Caddy).
+caddy_email: ""
+# Extra raw lines for the global options block, e.g. "admin off" or an
+# "acme_dns cloudflare {env.CF_API_TOKEN}" directive. One directive per line.
+caddy_global_options: ""
+
+# Site snippets written to conf.d as "<key>.caddy" and imported by the default
+# Caddyfile. Each value is the raw Caddyfile content for that file. Example:
+#   caddy_config_snippets:
+#     example:
+#       content: |
+#         example.com {
+#           reverse_proxy localhost:8080
+#         }
+caddy_config_snippets: {}
+caddy_manage_snippets_dir: true
+# Remove *.caddy files in conf.d that are not present in caddy_config_snippets.
+# Off by default so out-of-band snippets are never deleted by surprise.
+caddy_prune_snippets: false
+
+# Environment variables for the caddy service (written to an EnvironmentFile
+# plus a systemd drop-in). Intended for ACME DNS-challenge credentials such as
+# CF_API_TOKEN. Changing these triggers a service restart, not a reload.
+caddy_environment: {}
+
+# --- Teardown ---------------------------------------------------------------
+
+# On caddy_state=absent, also uninstall the package. Off by default so an
+# accidental absent run does not pull the binary and its data path apart.
+caddy_remove_package: false

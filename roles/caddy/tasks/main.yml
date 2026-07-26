@@ -1,0 +1,44 @@
+---
+- name: Validate role parameters
+  ansible.builtin.import_tasks: assert.yml
+  tags: [always, caddy, caddy-validate]
+
+- name: Load OS family specific variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', _caddy_vars_params) }}"
+  vars:
+    _caddy_vars_params:
+      files:
+        - "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+        - "{{ ansible_distribution }}.yml"
+        - "{{ ansible_os_family }}.yml"
+        - default.yml
+      paths:
+        - "{{ role_path }}/vars"
+  tags: [always, caddy]
+
+- name: Remove Caddy
+  ansible.builtin.import_tasks: absent.yml
+  when: caddy_state == 'absent'
+  tags: [caddy, caddy-absent]
+
+- name: Install Caddy
+  ansible.builtin.include_tasks: "{{ lookup('ansible.builtin.first_found', _caddy_install_params) }}"
+  vars:
+    _caddy_install_params:
+      files:
+        - "install-{{ ansible_os_family }}.yml"
+        - install-default.yml
+      paths:
+        - "{{ role_path }}/tasks"
+  when: caddy_state == 'present'
+  tags: [caddy, caddy-install]
+
+- name: Configure Caddy
+  ansible.builtin.import_tasks: configure.yml
+  when: caddy_state == 'present'
+  tags: [caddy, caddy-config]
+
+- name: Manage the Caddy service
+  ansible.builtin.import_tasks: service.yml
+  when: caddy_state == 'present'
+  tags: [caddy, caddy-service]

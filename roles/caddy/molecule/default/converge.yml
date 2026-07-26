@@ -1,0 +1,21 @@
+---
+- name: Converge
+  hosts: caddy_hosts
+  become: true
+  vars:
+    caddy_email: admin@example.test
+    caddy_global_options:
+      # Disable the admin API to prove global options are rendered and valid.
+      admin off
+    caddy_config_snippets:
+      molecule:
+        content: |
+          :8080 {
+          	respond "hello from molecule"
+          }
+    caddy_environment:
+      CADDY_MOLECULE_TOKEN: molecule-secret
+  tasks:
+    - name: Run the caddy role
+      ansible.builtin.include_role:
+        name: caddy

@@ -1,0 +1,31 @@
+---
+# Internal constants. Do NOT override from inventory or playbooks.
+
+caddy_service_name: caddy
+caddy_user: caddy
+caddy_group: caddy
+
+caddy_config_dir: /etc/caddy
+caddy_config_file: /etc/caddy/Caddyfile
+caddy_snippets_dir: /etc/caddy/conf.d
+caddy_data_dir: /var/lib/caddy
+caddy_env_file: /etc/caddy/caddy.env
+
+caddy_systemd_dropin_dir: /etc/systemd/system/caddy.service.d
+caddy_systemd_dropin_file: /etc/systemd/system/caddy.service.d/10-ansible-env.conf
+
+# Debian-family official repository (Cloudsmith). The suite is literally
+# "any-version"; the same URLs serve every Debian/Ubuntu release.
+caddy_apt_keyring_dir: /etc/apt/keyrings
+caddy_cloudsmith_base_url: "https://dl.cloudsmith.io/public/caddy"
+
+# Allowed enum values, validated in assert.yml.
+caddy_valid_states:
+  - present
+  - absent
+caddy_valid_repo_channels:
+  - stable
+  - testing
+
+# Captures the version from `caddy version` output, e.g. "v2.8.4 h1:...".
+caddy_version_regex: 'v([0-9]+\.[0-9]+\.[0-9]+)'

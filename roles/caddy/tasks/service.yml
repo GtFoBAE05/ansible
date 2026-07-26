@@ -1,0 +1,12 @@
+---
+# Flush any config/env changes queued as handlers (daemon-reload, reload,
+# restart) before asserting the steady-state enabled/started status below, so
+# the two do not fight over the service on the same run.
+- name: Apply pending Caddy configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Manage the Caddy service
+  ansible.builtin.systemd_service:
+    name: "{{ caddy_service_name }}"
+    enabled: "{{ caddy_service_enabled }}"
+    state: "{{ caddy_service_state }}"

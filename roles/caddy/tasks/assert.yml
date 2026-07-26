@@ -1,0 +1,80 @@
+---
+- name: Assert the target system runs systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_service_mgr == 'systemd'
+    fail_msg: >-
+      The caddy role requires systemd (found init system
+      '{{ ansible_service_mgr }}'). Caddy ships and is managed as a systemd
+      service.
+    success_msg: systemd detected
+
+- name: Assert caddy_state is valid
+  ansible.builtin.assert:
+    that:
+      - caddy_state in caddy_valid_states
+    fail_msg: >-
+      'caddy_state' must be one of {{ caddy_valid_states }}.
+      Got: '{{ caddy_state }}'.
+
+- name: Assert caddy_repo_channel is valid
+  ansible.builtin.assert:
+    that:
+      - caddy_repo_channel in caddy_valid_repo_channels
+    fail_msg: >-
+      'caddy_repo_channel' must be one of {{ caddy_valid_repo_channels }}.
+      Got: '{{ caddy_repo_channel }}'.
+
+- name: Assert caddy_version is a string
+  ansible.builtin.assert:
+    that:
+      - caddy_version is string
+    fail_msg: >-
+      'caddy_version' must be a string package version (e.g. "2.8.4") or empty.
+      Got: '{{ caddy_version }}' ({{ caddy_version | type_debug }}).
+
+- name: Assert the Caddyfile source is not doubly specified
+  ansible.builtin.assert:
+    that:
+      - not (caddy_config_template | length > 0 and caddy_config | length > 0)
+    fail_msg: >-
+      Set at most one of 'caddy_config_template' and 'caddy_config'. Both were
+      provided, which is ambiguous. Use a template for dynamic config or a raw
+      string for static config, not both.
+
+- name: Assert caddy_config_snippets is a mapping
+  ansible.builtin.assert:
+    that:
+      - caddy_config_snippets is mapping
+    fail_msg: >-
+      'caddy_config_snippets' must be a mapping of "<name>: {content: ...}".
+      Got a {{ caddy_config_snippets | type_debug }}.
+
+- name: Assert every snippet has content
+  ansible.builtin.assert:
+    that:
+      - item.value.content is defined
+      - item.value.content | string | length > 0
+    fail_msg: >-
+      Snippet '{{ item.key }}' must define a non-empty 'content'. It becomes
+      {{ caddy_snippets_dir }}/{{ item.key }}.caddy.
+    quiet: true
+  loop: "{{ caddy_config_snippets | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Assert caddy_environment is a mapping
+  ansible.builtin.assert:
+    that:
+      - caddy_environment is mapping
+    fail_msg: >-
+      'caddy_environment' must be a mapping of "VAR: value".
+      Got a {{ caddy_environment | type_debug }}.
+
+- name: Warn when a non-official repo is expected to already exist
+  ansible.builtin.debug:
+    msg: >-
+      caddy_use_official_repo is false: this role will install the package
+      '{{ caddy_package_name | default('caddy') }}' but will NOT configure any
+      repository. Ensure a repo providing it is already present on the host.
+  when: not caddy_use_official_repo

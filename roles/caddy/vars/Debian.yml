@@ -1,0 +1,6 @@
+---
+caddy_package_name: caddy
+
+# Fetched over HTTPS; ca-certificates ships on all supported images. No extra
+# prerequisites are required for the apt_repository + get_url approach.
+caddy_repo_prereq_packages: []
